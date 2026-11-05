@@ -136,21 +136,31 @@ export function SearchView({
 
           {/* Results Summary Bar */}
           {searchResponse && (
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-2.5 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-2">
-                <span>
-                  Found{" "}
-                  <strong className="text-slate-900 dark:text-slate-100 font-semibold font-mono">
-                    {searchResponse.total_results}
-                  </strong>{" "}
-                  matching chunk{searchResponse.total_results === 1 ? "" : "s"}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {searchResponse.total_results} {searchResponse.total_results === 1 ? "result" : "results"}
                 </span>
-                <span>•</span>
-                <span className="font-mono">{searchResponse.execution_time_ms.toFixed(1)} ms</span>
-                <span>•</span>
-                <span className="capitalize font-mono text-[11px] text-cyan-600 dark:text-cyan-400">
-                  {searchResponse.effective_mode} mode
-                </span>
+                <span>·</span>
+                <span>{searchResponse.execution_time_ms.toFixed(0)} ms</span>
+
+                {/* Subtle fallback indicator if degraded */}
+                {searchResponse.effective_mode === "keyword_only" && (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      Keyword fallback
+                    </span>
+                  </>
+                )}
+                {searchResponse.effective_mode === "semantic_only" && (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      Semantic fallback
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -180,6 +190,10 @@ export function SearchView({
                 query={debouncedQuery}
                 onClearQuery={handleClear}
                 onOpenLibrary={onOpenLibrary}
+                onSelectQuery={(suggestion) => {
+                  setQuery(suggestion);
+                  executeSearch(suggestion);
+                }}
               />
             )}
           </div>
