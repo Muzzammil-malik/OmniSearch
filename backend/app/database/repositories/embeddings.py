@@ -113,3 +113,20 @@ class ChunkEmbeddingRepository:
         cursor.close()
         return count
 
+    @staticmethod
+    def count_unembedded(conn: sqlite3.Connection) -> int:
+        """Count successfully indexed chunks that do not yet have embeddings."""
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM chunks c
+            JOIN files f ON c.file_id = f.id
+            LEFT JOIN chunk_embeddings ce ON c.id = ce.chunk_id
+            WHERE ce.chunk_id IS NULL AND f.status = 'success';
+            """
+        )
+        count = cursor.fetchone()[0]
+        cursor.close()
+        return count
+

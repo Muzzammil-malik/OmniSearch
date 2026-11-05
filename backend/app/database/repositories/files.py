@@ -162,6 +162,33 @@ class FileRepository:
         return deleted_paths
 
     @staticmethod
+    def count_total(conn: sqlite3.Connection) -> int:
+        """Count total tracked files."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM files;")
+        total = cursor.fetchone()[0]
+        cursor.close()
+        return total
+
+    @staticmethod
+    def count_by_status(conn: sqlite3.Connection) -> dict:
+        """Count files grouped by extraction status."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, COUNT(*) FROM files GROUP BY status;")
+        counts = {row[0]: row[1] for row in cursor.fetchall()}
+        cursor.close()
+        return counts
+
+    @staticmethod
+    def get_total_size_bytes(conn: sqlite3.Connection) -> int:
+        """Calculate total size of all tracked files in bytes."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM files;")
+        total_size = cursor.fetchone()[0]
+        cursor.close()
+        return total_size
+
+    @staticmethod
     def _row_to_record(row: sqlite3.Row) -> FileRecord:
         return FileRecord(
             id=row["id"],

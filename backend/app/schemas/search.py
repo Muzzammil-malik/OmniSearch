@@ -1,5 +1,6 @@
 """Pydantic schemas for keyword search requests, filters, results, and responses."""
 
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -237,3 +238,46 @@ class HybridSearchResponse(BaseModel):
         default=60,
         description="RRF smoothing constant k used during ranking fusion.",
     )
+
+
+class SearchModeEnum(str, Enum):
+    """User-selectable search strategy."""
+
+    HYBRID = "hybrid"
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
+
+
+class UnifiedSearchQuery(BaseModel):
+    """Unified application search request supporting hybrid, keyword, and semantic modes."""
+
+    query: str = Field(..., min_length=1, description="Search query string.")
+    mode: SearchModeEnum = Field(
+        default=SearchModeEnum.HYBRID,
+        description="Search execution mode: 'hybrid', 'keyword', or 'semantic'.",
+    )
+    filter: Optional[SearchFilter] = Field(default=None, description="Optional search filters.")
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return.")
+    offset: int = Field(default=0, ge=0, description="Offset for pagination.")
+    rrf_k: int = Field(default=60, ge=1, le=1000, description="RRF smoothing constant k (for hybrid mode).")
+    candidate_multiplier: int = Field(default=5, ge=1, le=20, description="Candidate multiplier (for hybrid mode).")
+    min_similarity: float = Field(default=-1.0, ge=-1.0, le=1.0, description="Min cosine similarity (for semantic mode).")
+
+
+class UnifiedSearchResponse(BaseModel):
+    """Unified search response model presenting standard results across all modes."""
+
+    query: str
+    requested_mode: SearchModeEnum
+    effective_mode: str = Field(
+        ...,
+        description="Effective execution mode: 'hybrid', 'keyword', 'semantic', 'keyword_only', 'semantic_only', 'unavailable'.",
+    )
+    total_results: int
+    results: List[HybridSearchResultItem]
+    limit: int
+    offset: int
+    execution_time_ms: float
+    keyword_available: bool = True
+    semantic_available: bool = True
+    rrf_k: Optional[int] = 60

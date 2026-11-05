@@ -3,10 +3,18 @@
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from threading import Thread
 from typing import Any, List, Optional, Set, Union
+from app.core.exceptions import (
+    FolderNotFoundError,
+    IndexingInProgressError,
+    InvalidFolderPathError,
+    JobNotFoundError,
+)
 from app.core.logging import get_logger
 from app.database.connection import DatabaseConnectionManager
 from app.database.repositories.chunks import ChunkRepository
+from app.database.repositories.embeddings import ChunkEmbeddingRepository
 from app.database.repositories.files import FileRepository
 from app.database.repositories.folders import FolderRepository
 from app.database.repositories.jobs import JobRepository
@@ -15,6 +23,11 @@ from app.ingestion.hashing import try_calculate_sha256
 from app.ingestion.scanner import FolderScanner
 from app.processing.pipeline import ContentProcessingPipeline
 from app.schemas.extraction import ExtractionStatus, ScannedFile
+from app.schemas.indexing import (
+    IndexJobResponse,
+    IndexingStatsResponse,
+    IndexingStatusResponse,
+)
 from app.schemas.processing import FileRecord, IndexJobRecord, IndexJobStatus
 
 logger = get_logger(__name__)
@@ -251,4 +264,150 @@ class IndexingService:
             final_job.failed_files,
         )
         return final_job
+
+    def trigger_indexing(
+        self,
+        folder_id: Optional[int] = None,
+        folder_path: Optional[str] = None,
+        force_reindex: bool = False,
+        reconcile_deleted: bool = True,
+        generate_embeddings: bool = True,
+        background: bool = False,
+    ) -> IndexJobRecord:
+        """Trigger an indexing operation with validation, concurrency checks, and optional background execution."""
+        # 1. Concurrency check: reject if another job is already actively running
+        with self.db.connection() as conn:
+            running_job = JobRepository.get_running_job(conn)
+            if running_job is not None:
+                raise IndexingInProgressError(active_job_id=running_job.id)
+
+        # 2. Resolve target directories
+        target_paths: List[Path] = []
+        if folder_id is not None:
+            with self.db.connection() as conn:
+                folder_rec = FolderRepository.get_by_id(conn, folder_id)
+            if not folder_rec:
+                raise FolderNotFoundError(folder_id)
+            target_paths.append(Path(folder_rec.path))
+        elif folder_path is not None:
+            p = Path(folder_path).resolve()
+            if not p.exists() or not p.is_dir():
+                raise InvalidFolderPathError(str(p))
+            target_paths.append(p)
+        else:
+            with self.db.connection() as conn:
+                registered = FolderRepository.list_all(conn)
+            enabled_folders = [f for f in registered if f.enabled]
+            if not enabled_folders:
+                raise InvalidFolderPathError(
+                    "", reason="No active folders registered. Register a folder first."
+                )
+            target_paths.extend([Path(f.path) for f in enabled_folders])
+
+        def run_work() -> IndexJobRecord:
+            last_job: Optional[IndexJobRecord] = None
+            for tp in target_paths:
+                last_job = self.index_folder(
+                    folder_path=tp,
+                    reconcile_deleted=reconcile_deleted,
+                    force_reindex=force_reindex,
+                    generate_embeddings=generate_embeddings,
+                )
+            assert last_job is not None
+            return last_job
+
+        if background:
+            thread = Thread(target=run_work, daemon=True)
+            thread.start()
+            import time
+            time.sleep(0.05)
+            with self.db.connection() as conn:
+                job = JobRepository.get_running_job(conn) or JobRepository.get_latest(conn)
+            if job:
+                return job
+
+        return run_work()
+
+    def get_job(self, job_id: int) -> Optional[IndexJobRecord]:
+        """Fetch indexing job by ID."""
+        with self.db.connection() as conn:
+            return JobRepository.get_by_id(conn, job_id)
+
+    def get_latest_job(self) -> Optional[IndexJobRecord]:
+        """Fetch the most recent indexing job."""
+        with self.db.connection() as conn:
+            return JobRepository.get_latest(conn)
+
+    def list_recent_jobs(self, limit: int = 20) -> List[IndexJobRecord]:
+        """List recent indexing jobs."""
+        with self.db.connection() as conn:
+            return JobRepository.list_recent(conn, limit=limit)
+
+    def get_indexing_status(self) -> IndexingStatusResponse:
+        """Inspect current indexing engine status and recent jobs."""
+        with self.db.connection() as conn:
+            running = JobRepository.get_running_job(conn)
+            recent = JobRepository.list_recent(conn, limit=10)
+
+        current_job_resp = (
+            IndexJobResponse(
+                id=running.id,
+                status=running.status,
+                total_files=running.total_files,
+                processed_files=running.processed_files,
+                successful_files=running.successful_files,
+                failed_files=running.failed_files,
+                skipped_files=running.skipped_files,
+                started_at=running.started_at,
+                finished_at=running.finished_at,
+                error_message=running.error_message,
+            )
+            if running and running.id is not None
+            else None
+        )
+
+        recent_resps = [
+            IndexJobResponse(
+                id=j.id,
+                status=j.status,
+                total_files=j.total_files,
+                processed_files=j.processed_files,
+                successful_files=j.successful_files,
+                failed_files=j.failed_files,
+                skipped_files=j.skipped_files,
+                started_at=j.started_at,
+                finished_at=j.finished_at,
+                error_message=j.error_message,
+            )
+            for j in recent
+            if j.id is not None
+        ]
+
+        return IndexingStatusResponse(
+            is_indexing=running is not None,
+            current_job=current_job_resp,
+            recent_jobs=recent_resps,
+        )
+
+    def get_indexing_stats(self) -> IndexingStatsResponse:
+        """Calculate global aggregated indexing metrics."""
+        with self.db.connection() as conn:
+            folders = FolderRepository.list_all(conn)
+            total_files = FileRepository.count_total(conn)
+            status_counts = FileRepository.count_by_status(conn)
+            total_chunks = ChunkRepository.count_total(conn)
+            embedded_chunks = ChunkEmbeddingRepository.count_embedded(conn)
+            unembedded_chunks = ChunkEmbeddingRepository.count_unembedded(conn)
+            total_size = FileRepository.get_total_size_bytes(conn)
+
+        return IndexingStatsResponse(
+            total_folders=len(folders),
+            total_files=total_files,
+            successful_files=status_counts.get("success", 0),
+            failed_files=status_counts.get("failed", 0) + status_counts.get("unsupported", 0),
+            total_chunks=total_chunks,
+            embedded_chunks=embedded_chunks,
+            unembedded_chunks=unembedded_chunks,
+            total_size_bytes=total_size,
+        )
 
