@@ -174,3 +174,4 @@ async def index_folder(
         finished_at=job.finished_at,
         error_message=job.error_message,
     )
+

@@ -131,3 +131,4 @@ async def get_indexing_stats(
 ) -> IndexingStatsResponse:
     """Get aggregated indexing statistics."""
     return service.get_indexing_stats()
+

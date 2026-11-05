@@ -274,3 +274,4 @@ class SearchService:
             semantic_available=res.semantic_available,
             rrf_k=res.rrf_k,
         )
+

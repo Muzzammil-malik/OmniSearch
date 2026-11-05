@@ -163,3 +163,4 @@ def test_indexing_conflict_when_running(indexing_env):
     # Clean up running job
     with db.transaction() as conn:
         JobRepository.finish(conn, running_id, IndexJobStatus.COMPLETED)
+

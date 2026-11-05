@@ -17,3 +17,4 @@ class ErrorResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp of the error response",
     )
+

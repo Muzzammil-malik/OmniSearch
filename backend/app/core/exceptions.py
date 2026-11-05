@@ -133,3 +133,4 @@ class ServiceUnavailableError(OmniSearchException):
             status_code=503,
             details={"service": service_name, "reason": reason},
         )
+

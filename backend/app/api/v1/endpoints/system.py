@@ -43,3 +43,4 @@ async def get_system_stats(
 ) -> IndexingStatsResponse:
     """Retrieve aggregated indexing statistics."""
     return indexing_service.get_indexing_stats()
+

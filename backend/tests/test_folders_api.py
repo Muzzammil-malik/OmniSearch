@@ -229,3 +229,4 @@ def test_index_specific_folder_endpoint(folder_env):
     assert job_data["status"] == "completed"
     assert job_data["total_files"] == 1
     assert job_data["successful_files"] == 1
+

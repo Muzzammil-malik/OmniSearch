@@ -51,3 +51,4 @@ class IndexingStatsResponse(BaseModel):
     embedded_chunks: int = Field(default=0, description="Total chunks with ChromaDB vector embeddings")
     unembedded_chunks: int = Field(default=0, description="Chunks pending embedding generation")
     total_size_bytes: int = Field(default=0, description="Cumulative size of all tracked files in bytes")
+

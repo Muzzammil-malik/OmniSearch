@@ -192,3 +192,4 @@ def test_unified_search_file_type_filter(search_service_env):
     data = response.json()
     for item in data["results"]:
         assert item["file_type"] == "pdf"
+

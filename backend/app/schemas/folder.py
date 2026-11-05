@@ -45,3 +45,4 @@ class FolderDeleteResponse(BaseModel):
     success: bool = Field(..., description="Whether folder was successfully removed")
     folder_id: int = Field(..., description="ID of the removed folder")
     message: str = Field(..., description="Summary confirmation message")
+
