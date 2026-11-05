@@ -139,6 +139,7 @@ export function LibraryView({ onTriggerIndexingSuccess }: LibraryViewProps) {
         force_reindex: false,
         reconcile_deleted: true,
         generate_embeddings: true,
+        background: true,
       });
       setActionMessage(`Indexing started for ${folder.path}`);
       setTimeout(() => setActionMessage(null), 4000);

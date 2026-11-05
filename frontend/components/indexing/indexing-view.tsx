@@ -77,9 +77,9 @@ export function IndexingView({ onIndexingStateChange }: IndexingViewProps) {
         force_reindex: forceReindex,
         reconcile_deleted: reconcileDeleted,
         generate_embeddings: generateEmbeddings,
-        background: false,
+        background: true,
       });
-      setActionMessage("Indexing completed successfully.");
+      setActionMessage("Indexing started in background.");
       fetchIndexingData();
     } catch (err: unknown) {
       setActionMessage(

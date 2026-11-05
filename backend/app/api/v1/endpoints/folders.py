@@ -1,7 +1,7 @@
 """Folder management API endpoints."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 
 from app.core.config import get_settings
 from app.database.connection import DatabaseConnectionManager
@@ -14,7 +14,7 @@ from app.schemas.folder import (
     FolderResponse,
     FolderUpdateRequest,
 )
-from app.schemas.indexing import IndexJobResponse
+from app.schemas.indexing import IndexJobResponse, IndexTriggerRequest
 from app.services.folder_service import FolderService
 from app.services.indexer import IndexingService
 from app.services.semantic_pipeline import SemanticPipeline
@@ -148,19 +148,41 @@ async def delete_folder(
 )
 async def index_folder(
     folder_id: int,
-    force_reindex: bool = Query(default=False, description="Force re-indexing of unchanged files"),
-    reconcile_deleted: bool = Query(default=True, description="Prune deleted files from index"),
-    generate_embeddings: bool = Query(default=True, description="Generate vector embeddings"),
-    background: bool = Query(default=False, description="Execute asynchronously in background"),
+    request: Optional[IndexTriggerRequest] = Body(default=None),
+    force_reindex: Optional[bool] = Query(default=None, description="Force re-indexing of unchanged files"),
+    reconcile_deleted: Optional[bool] = Query(default=None, description="Prune deleted files from index"),
+    generate_embeddings: Optional[bool] = Query(default=None, description="Generate vector embeddings"),
+    background: Optional[bool] = Query(default=None, description="Execute asynchronously in background"),
     indexing_service: IndexingService = Depends(get_indexing_service),
 ) -> IndexJobResponse:
     """Trigger indexing on specific folder."""
+    f_reindex = (
+        request.force_reindex
+        if request and request.force_reindex is not None
+        else (force_reindex if force_reindex is not None else False)
+    )
+    r_deleted = (
+        request.reconcile_deleted
+        if request and request.reconcile_deleted is not None
+        else (reconcile_deleted if reconcile_deleted is not None else True)
+    )
+    g_embeddings = (
+        request.generate_embeddings
+        if request and request.generate_embeddings is not None
+        else (generate_embeddings if generate_embeddings is not None else True)
+    )
+    bg = (
+        request.background
+        if request and request.background is not None
+        else (background if background is not None else False)
+    )
+
     job = indexing_service.trigger_indexing(
         folder_id=folder_id,
-        force_reindex=force_reindex,
-        reconcile_deleted=reconcile_deleted,
-        generate_embeddings=generate_embeddings,
-        background=background,
+        force_reindex=f_reindex,
+        reconcile_deleted=r_deleted,
+        generate_embeddings=g_embeddings,
+        background=bg,
     )
     return IndexJobResponse(
         id=job.id,

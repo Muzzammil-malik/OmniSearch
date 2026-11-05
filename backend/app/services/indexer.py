@@ -3,8 +3,8 @@
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from threading import Thread
-from typing import Any, List, Optional, Set, Union
+from threading import Event, Thread
+from typing import Any, Callable, List, Optional, Set, Union
 from app.core.exceptions import (
     FolderNotFoundError,
     IndexingInProgressError,
@@ -56,6 +56,7 @@ class IndexingService:
         reconcile_deleted: bool = True,
         force_reindex: bool = False,
         generate_embeddings: bool = False,
+        on_job_created: Optional[Callable[[int], None]] = None,
     ) -> IndexJobRecord:
         """Scan, process, and persist all supported files within a folder.
 
@@ -63,6 +64,8 @@ class IndexingService:
             folder_path: Target directory path on local disk.
             reconcile_deleted: Whether to remove database records for files deleted from disk.
             force_reindex: If True, reprocesses files even if size, mtime, and hash match.
+            generate_embeddings: If True and semantic pipeline is present, compute vector embeddings.
+            on_job_created: Optional callback invoked immediately with newly created job_id.
 
         Returns:
             Final IndexJobRecord reflecting processing metrics and job outcome.
@@ -83,6 +86,9 @@ class IndexingService:
             folder_id = folder_record.id
             assert folder_id is not None
             job_id = JobRepository.create(conn, total_files=len(supported_files))
+
+        if on_job_created is not None:
+            on_job_created(job_id)
 
         processed_count = 0
         successful_count = 0
@@ -237,20 +243,27 @@ class IndexingService:
                     logger.warning("Vector store reconciliation warning: %s", exc)
 
         # 4b. Optional semantic embedding generation
+        embedding_error: Optional[str] = None
         if generate_embeddings and self.semantic_pipeline:
             try:
                 embedded_count = self.semantic_pipeline.sync_embeddings()
                 logger.info("Generated semantic embeddings for %d chunks", embedded_count)
             except Exception as exc:
+                embedding_error = f"Embedding generation failed: {exc}"
                 logger.error("Error generating semantic embeddings during indexing: %s", exc, exc_info=True)
 
         # 5. Finalize job status
+        err_msg = embedding_error
+        if failed_count > 0:
+            file_err_msg = f"{failed_count} file(s) failed extraction"
+            err_msg = f"{file_err_msg}; {embedding_error}" if embedding_error else file_err_msg
+
         final_status = (
-            IndexJobStatus.COMPLETED if failed_count == 0
+            IndexJobStatus.COMPLETED if (failed_count == 0 and not embedding_error)
             else IndexJobStatus.COMPLETED_WITH_ERRORS
         )
         with self.db.transaction() as conn:
-            JobRepository.finish(conn, job_id, final_status)
+            JobRepository.finish(conn, job_id, final_status, error_message=err_msg)
             final_job = JobRepository.get_by_id(conn, job_id)
 
         assert final_job is not None
@@ -304,6 +317,42 @@ class IndexingService:
                 )
             target_paths.extend([Path(f.path) for f in enabled_folders])
 
+        if background:
+            job_created_event = Event()
+            created_job_id: List[int] = []
+
+            def on_created(jid: int) -> None:
+                created_job_id.append(jid)
+                job_created_event.set()
+
+            def run_background_work() -> None:
+                try:
+                    for tp in target_paths:
+                        self.index_folder(
+                            folder_path=tp,
+                            reconcile_deleted=reconcile_deleted,
+                            force_reindex=force_reindex,
+                            generate_embeddings=generate_embeddings,
+                            on_job_created=on_created if not created_job_id else None,
+                        )
+                except Exception as exc:
+                    logger.error("Background indexing worker error: %s", exc, exc_info=True)
+                finally:
+                    job_created_event.set()
+
+            thread = Thread(target=run_background_work, daemon=True)
+            thread.start()
+
+            # Wait briefly for job to be registered in SQLite
+            job_created_event.wait(timeout=5.0)
+            with self.db.connection() as conn:
+                if created_job_id:
+                    job = JobRepository.get_by_id(conn, created_job_id[0])
+                else:
+                    job = JobRepository.get_running_job(conn) or JobRepository.get_latest(conn)
+            if job:
+                return job
+
         def run_work() -> IndexJobRecord:
             last_job: Optional[IndexJobRecord] = None
             for tp in target_paths:
@@ -315,16 +364,6 @@ class IndexingService:
                 )
             assert last_job is not None
             return last_job
-
-        if background:
-            thread = Thread(target=run_work, daemon=True)
-            thread.start()
-            import time
-            time.sleep(0.05)
-            with self.db.connection() as conn:
-                job = JobRepository.get_running_job(conn) or JobRepository.get_latest(conn)
-            if job:
-                return job
 
         return run_work()
 
