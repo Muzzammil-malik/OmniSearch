@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from typing import Any, Callable, List, Optional, Set, Union
 from app.core.exceptions import (
     FolderNotFoundError,
@@ -49,6 +49,258 @@ class IndexingService:
         self.coordinator = coordinator or IngestionCoordinator()
         self.pipeline = pipeline or ContentProcessingPipeline()
         self.semantic_pipeline = semantic_pipeline
+        self._file_lock = Lock()
+        self._active_files: Set[str] = set()
+
+    def acquire_file(self, file_path: Union[str, Path]) -> bool:
+        """Attempt to acquire processing exclusivity for a file path. Returns True if acquired."""
+        norm_key = str(Path(file_path).resolve()).lower()
+        with self._file_lock:
+            if norm_key in self._active_files:
+                return False
+            self._active_files.add(norm_key)
+            return True
+
+    def release_file(self, file_path: Union[str, Path]) -> None:
+        """Release processing exclusivity for a file path."""
+        norm_key = str(Path(file_path).resolve()).lower()
+        with self._file_lock:
+            self._active_files.discard(norm_key)
+
+    def index_single_file(
+        self,
+        file_path: Union[str, Path],
+        folder_id: Optional[int] = None,
+        force_reindex: bool = False,
+        generate_embeddings: bool = True,
+    ) -> Optional[FileRecord]:
+        """Index or re-index a single file with full exception isolation, deduplication, and modified-file safety.
+
+        Modified-file safety: If extraction fails for an existing successfully indexed file,
+        previous valid chunks and vectors are preserved.
+        """
+        resolved_path = Path(file_path).resolve()
+        if not resolved_path.exists() or not resolved_path.is_file():
+            logger.debug("Cannot index non-existent file: %s", resolved_path)
+            return None
+
+        if not self.acquire_file(resolved_path):
+            logger.debug("File '%s' is already being indexed, skipping concurrent attempt", resolved_path.name)
+            return None
+
+        try:
+            # 1. Resolve folder ID
+            if folder_id is None:
+                with self.db.connection() as conn:
+                    matching = FolderRepository.find_matching_folder(conn, str(resolved_path))
+                if not matching or matching.id is None:
+                    logger.debug("File '%s' does not reside inside any active registered folder", resolved_path.name)
+                    return None
+                folder_id = matching.id
+
+            # 2. Check file stats
+            try:
+                stat_res = resolved_path.stat()
+                mtime_iso = datetime.fromtimestamp(stat_res.st_mtime, tz=timezone.utc).isoformat()
+                file_size = stat_res.st_size
+            except OSError as exc:
+                logger.warning("Could not stat file '%s': %s", resolved_path.name, exc)
+                return None
+
+            # 3. Check existing file record
+            with self.db.connection() as conn:
+                existing_file = FileRepository.get_by_path(conn, str(resolved_path))
+
+            # 4. Content hashing
+            current_sha256 = try_calculate_sha256(resolved_path)
+
+            # Check if content is unchanged
+            if (
+                not force_reindex
+                and existing_file
+                and existing_file.status == ExtractionStatus.SUCCESS.value
+                and existing_file.sha256 is not None
+                and current_sha256 is not None
+                and current_sha256 == existing_file.sha256
+            ):
+                if existing_file.modified_at != mtime_iso or existing_file.size_bytes != file_size:
+                    with self.db.transaction() as conn:
+                        updated_rec = existing_file.model_copy(
+                            update={"modified_at": mtime_iso, "size_bytes": file_size}
+                        )
+                        FileRepository.upsert(conn, updated_rec)
+                logger.debug("Content unchanged for '%s', skipping re-extraction", resolved_path.name)
+                return existing_file
+
+            # 5. Extract document
+            scanned_file = ScannedFile(
+                path=resolved_path,
+                filename=resolved_path.name,
+                extension=resolved_path.suffix.lower(),
+                file_size=file_size,
+                is_supported=True,
+            )
+            extracted_doc = self.coordinator.extract_document(
+                scanned_file,
+                compute_hash=False,
+                precomputed_sha256=current_sha256,
+            )
+
+            # Handle extraction failure
+            if extracted_doc.extraction_status in (ExtractionStatus.FAILED, ExtractionStatus.UNSUPPORTED):
+                logger.warning("Extraction failed for file '%s': %s", resolved_path.name, extracted_doc.error_message)
+                failed_record = FileRecord(
+                    folder_id=folder_id,
+                    path=str(resolved_path),
+                    filename=resolved_path.name,
+                    extension=resolved_path.suffix.lower(),
+                    file_type=extracted_doc.file_type,
+                    sha256=extracted_doc.sha256,
+                    size_bytes=file_size,
+                    modified_at=mtime_iso,
+                    status=extracted_doc.extraction_status.value,
+                    error_message=extracted_doc.error_message,
+                    metadata_json=json.dumps(extracted_doc.metadata),
+                )
+                with self.db.transaction() as conn:
+                    saved_id = FileRepository.upsert(conn, failed_record)
+                    # Modified-file safety: If previously successful, preserve old chunks!
+                    if not existing_file or existing_file.status != ExtractionStatus.SUCCESS.value:
+                        ChunkRepository.delete_by_file_id(conn, saved_id)
+                    else:
+                        logger.info("Preserved existing valid chunks for '%s' following failed re-extraction", resolved_path.name)
+                return failed_record
+
+            # 6. Process document content and chunking
+            norm_doc, chunks = self.pipeline.process_document(extracted_doc)
+
+            file_record = FileRecord(
+                folder_id=folder_id,
+                path=str(resolved_path),
+                filename=resolved_path.name,
+                extension=resolved_path.suffix.lower(),
+                file_type=extracted_doc.file_type,
+                sha256=extracted_doc.sha256,
+                size_bytes=file_size,
+                modified_at=mtime_iso,
+                status=extracted_doc.extraction_status.value,
+                error_message=extracted_doc.error_message,
+                metadata_json=json.dumps(norm_doc.metadata),
+            )
+
+            # 7. Persist file and chunks atomically
+            old_chunk_ids: List[int] = []
+            with self.db.transaction() as conn:
+                saved_file_id = FileRepository.upsert(conn, file_record)
+                # Fetch old chunk IDs to remove from vector store if replacing
+                if existing_file:
+                    old_chunks = ChunkRepository.get_by_file_id(conn, saved_file_id)
+                    old_chunk_ids = [c.id for c in old_chunks if c.id is not None]
+
+                # Replace old chunks
+                ChunkRepository.delete_by_file_id(conn, saved_file_id)
+                if chunks:
+                    ChunkRepository.insert_chunks(conn, saved_file_id, chunks)
+
+            # 8. Clean up obsolete vectors from ChromaDB for replaced chunks
+            if old_chunk_ids and self.semantic_pipeline:
+                try:
+                    self.semantic_pipeline.vector_store.delete(old_chunk_ids)
+                except Exception as exc:
+                    logger.warning("Could not delete old vectors for '%s': %s", resolved_path.name, exc)
+
+            # 9. Sync semantic embeddings for new chunks
+            if generate_embeddings and self.semantic_pipeline and chunks:
+                try:
+                    self.semantic_pipeline.sync_embeddings()
+                except Exception as exc:
+                    logger.error("Error generating embeddings for '%s': %s", resolved_path.name, exc)
+
+            logger.info("Successfully indexed file '%s' (%d chunks)", resolved_path.name, len(chunks))
+            return file_record
+
+        except Exception as exc:
+            logger.error("Unhandled error indexing file '%s': %s", resolved_path.name, exc, exc_info=True)
+            return None
+        finally:
+            self.release_file(resolved_path)
+
+    def delete_single_file(self, file_path: Union[str, Path]) -> bool:
+        """Remove a file and all associated chunks, FTS entries, and ChromaDB vectors."""
+        resolved_path = Path(file_path).resolve()
+        if not self.acquire_file(resolved_path):
+            logger.debug("File '%s' is active, skipping concurrent deletion", resolved_path.name)
+            return False
+
+        try:
+            with self.db.connection() as conn:
+                existing = FileRepository.get_by_path(conn, str(resolved_path))
+
+            if not existing or existing.id is None:
+                logger.debug("File '%s' not tracked in database, nothing to delete", resolved_path.name)
+                return False
+
+            file_id = existing.id
+
+            # 1. Clean up vectors from ChromaDB
+            if self.semantic_pipeline:
+                try:
+                    self.semantic_pipeline.delete_file_embeddings(file_id)
+                except Exception as exc:
+                    logger.warning("Vector store cleanup warning for file #%d: %s", file_id, exc)
+
+            # 2. Delete file record from SQLite (cascading chunks and FTS5 triggers)
+            with self.db.transaction() as conn:
+                deleted = FileRepository.delete(conn, file_id)
+
+            logger.info("Deleted indexed file record #%d: %s", file_id, resolved_path.name)
+            return deleted
+        except Exception as exc:
+            logger.error("Error deleting file '%s': %s", resolved_path.name, exc, exc_info=True)
+            return False
+        finally:
+            self.release_file(resolved_path)
+
+    def move_single_file(self, old_path: Union[str, Path], new_path: Union[str, Path]) -> bool:
+        """Update file metadata for moved or renamed file without regenerating embeddings unnecessarily."""
+        resolved_old = Path(old_path).resolve()
+        resolved_new = Path(new_path).resolve()
+
+        if not self.acquire_file(resolved_old):
+            return False
+
+        try:
+            with self.db.connection() as conn:
+                existing = FileRepository.get_by_path(conn, str(resolved_old))
+                matching_folder = FolderRepository.find_matching_folder(conn, str(resolved_new))
+
+            if not existing or existing.id is None:
+                # File not previously tracked; treat as new file creation
+                return self.index_single_file(resolved_new) is not None
+
+            # If moved outside of all watched/registered folders -> delete it
+            if not matching_folder or matching_folder.id is None:
+                logger.info("File '%s' moved outside registered folders; removing index", resolved_old.name)
+                return self.delete_single_file(resolved_old)
+
+            # Moved within watched folders: update path and folder ID in SQLite
+            with self.db.transaction() as conn:
+                updated = FileRepository.update_path(
+                    conn,
+                    file_id=existing.id,
+                    new_path=str(resolved_new),
+                    new_filename=resolved_new.name,
+                    new_ext=resolved_new.suffix.lower(),
+                    folder_id=matching_folder.id,
+                )
+
+            logger.info("Moved file #%d from '%s' to '%s'", existing.id, resolved_old.name, resolved_new.name)
+            return updated
+        except Exception as exc:
+            logger.error("Error moving file from '%s' to '%s': %s", resolved_old.name, resolved_new.name, exc)
+            return False
+        finally:
+            self.release_file(resolved_old)
 
     def index_folder(
         self,

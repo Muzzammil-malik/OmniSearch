@@ -1,7 +1,7 @@
 """Indexing control and status API endpoints."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.v1.endpoints.folders import get_indexing_service
 from app.core.exceptions import JobNotFoundError
@@ -10,6 +10,7 @@ from app.schemas.indexing import (
     IndexTriggerRequest,
     IndexingStatsResponse,
     IndexingStatusResponse,
+    WatcherStatusResponse,
 )
 from app.services.indexer import IndexingService
 
@@ -56,10 +57,55 @@ async def start_indexing(
     description="Inspect whether indexing is actively running and review recent job history.",
 )
 async def get_indexing_status(
+    request: Request,
     service: IndexingService = Depends(get_indexing_service),
 ) -> IndexingStatusResponse:
     """Inspect current indexing engine status."""
-    return service.get_indexing_status()
+    watcher_status = None
+    watcher = getattr(request.app.state, "file_watcher", None) if hasattr(request, "app") else None
+    coordinator = getattr(request.app.state, "change_coordinator", None) if hasattr(request, "app") else None
+    debouncer = getattr(request.app.state, "change_debouncer", None) if hasattr(request, "app") else None
+
+    if watcher or coordinator:
+        watcher_status = WatcherStatusResponse(
+            enabled=True,
+            active=watcher.is_running if watcher else False,
+            watched_folders=watcher.watched_folders if watcher else [],
+            pending_events=debouncer.pending_count if debouncer else 0,
+            coordinator_queue_size=coordinator.queue_size if coordinator else 0,
+            processed_events=coordinator.processed_count if coordinator else 0,
+            current_file=coordinator.current_file if coordinator else None,
+        )
+
+    status_response = service.get_indexing_status()
+    if watcher_status is not None:
+        status_response.watcher = watcher_status
+    return status_response
+
+
+@router.get(
+    "/indexing/watcher",
+    response_model=WatcherStatusResponse,
+    summary="Get Watcher Status",
+    description="Inspect real-time filesystem watcher activity, queues, and watched folders.",
+)
+async def get_watcher_status(
+    request: Request,
+) -> WatcherStatusResponse:
+    """Inspect filesystem watcher and event coordinator telemetry."""
+    watcher = getattr(request.app.state, "file_watcher", None) if hasattr(request, "app") else None
+    coordinator = getattr(request.app.state, "change_coordinator", None) if hasattr(request, "app") else None
+    debouncer = getattr(request.app.state, "change_debouncer", None) if hasattr(request, "app") else None
+
+    return WatcherStatusResponse(
+        enabled=watcher is not None,
+        active=watcher.is_running if watcher else False,
+        watched_folders=watcher.watched_folders if watcher else [],
+        pending_events=debouncer.pending_count if debouncer else 0,
+        coordinator_queue_size=coordinator.queue_size if coordinator else 0,
+        processed_events=coordinator.processed_count if coordinator else 0,
+        current_file=coordinator.current_file if coordinator else None,
+    )
 
 
 @router.get(

@@ -133,3 +133,4 @@ def test_background_indexing_execution(test_env):
     job_data = index_resp.json()
     assert job_data["id"] > 0
     assert job_data["status"] in ("running", "completed")
+

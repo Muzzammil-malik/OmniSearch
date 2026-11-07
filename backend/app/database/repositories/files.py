@@ -122,6 +122,31 @@ class FileRepository:
         return [cls._row_to_record(r) for r in rows]
 
     @staticmethod
+    def update_path(
+        conn: sqlite3.Connection,
+        file_id: int,
+        new_path: str,
+        new_filename: str,
+        new_ext: str,
+        folder_id: int,
+    ) -> bool:
+        """Update file path, name, extension, and parent folder for moved/renamed file."""
+        norm_path = normalize_file_path(new_path)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE files
+            SET path = ?, filename = ?, extension = ?, folder_id = ?, indexed_at = ?
+            WHERE id = ?;
+            """,
+            (norm_path, new_filename, new_ext, folder_id, now_iso, file_id),
+        )
+        updated = cursor.rowcount > 0
+        cursor.close()
+        return updated
+
+    @staticmethod
     def delete(conn: sqlite3.Connection, file_id: int) -> bool:
         """Delete a file record. Foreign key CASCADE removes all corresponding chunks."""
         cursor = conn.cursor()

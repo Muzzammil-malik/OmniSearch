@@ -125,10 +125,21 @@ export interface IndexTriggerRequest {
   background?: boolean;
 }
 
+export interface WatcherStatusResponse {
+  enabled: boolean;
+  active: boolean;
+  watched_folders: string[];
+  pending_events: number;
+  coordinator_queue_size: number;
+  processed_events: number;
+  current_file?: string | null;
+}
+
 export interface IndexingStatusResponse {
   is_indexing: boolean;
   current_job?: IndexJobResponse | null;
   recent_jobs: IndexJobResponse[];
+  watcher?: WatcherStatusResponse | null;
 }
 
 export interface IndexingStatsResponse {

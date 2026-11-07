@@ -105,6 +105,33 @@ class Settings(BaseSettings):
         description="Floating-point precision for embedding inference ('float32' or 'bfloat16')",
     )
 
+    # OCR Configuration (Phase 9)
+    ocr_enabled: bool = Field(
+        default=True,
+        description="Enable local OCR fallback for scanned and image-only PDF documents",
+    )
+    ocr_tessdata_dir: Optional[Path] = Field(
+        default=None,
+        description="Custom directory containing tessdata language models (e.g. eng.traineddata)",
+    )
+
+    # File System Watcher & Incremental Indexing (Phase 9)
+    watcher_enabled: bool = Field(
+        default=True,
+        description="Enable automatic filesystem monitoring for registered active folders",
+    )
+    watcher_debounce_ms: int = Field(
+        default=800,
+        description="Debounce window in milliseconds for coalescing rapid filesystem events",
+    )
+
+    @property
+    def resolved_ocr_tessdata_dir(self) -> Path:
+        """Resolve directory containing Tesseract language data files."""
+        if self.ocr_tessdata_dir is not None:
+            return self.ocr_tessdata_dir
+        return self.data_dir / "ocr" / "tessdata"
+
     @property
     def resolved_db_path(self) -> Path:
         """Resolve database path, ensuring data directory exists."""

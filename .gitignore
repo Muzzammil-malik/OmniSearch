@@ -67,4 +67,6 @@ desktop.ini
 *.sqlite
 *.sqlite3
 chroma_data/
+backend/data/
+*.traineddata
 

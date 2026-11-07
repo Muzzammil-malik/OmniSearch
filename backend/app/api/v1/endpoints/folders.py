@@ -1,7 +1,7 @@
 """Folder management API endpoints."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Request, status
 
 from app.core.config import get_settings
 from app.database.connection import DatabaseConnectionManager
@@ -23,7 +23,7 @@ from app.vector_store.chroma import ChromaVectorStore
 router = APIRouter()
 
 
-def get_folder_service() -> FolderService:
+def get_folder_service(request: Request) -> FolderService:
     """Dependency providing configured FolderService instance."""
     db = DatabaseConnectionManager()
     settings = get_settings()
@@ -39,11 +39,15 @@ def get_folder_service() -> FolderService:
     )
     embedder = EmbeddingGemmaEmbedder(config=config)
     semantic_pipeline = SemanticPipeline(db=db, embedder=embedder, vector_store=vector_store)
-    return FolderService(db=db, semantic_pipeline=semantic_pipeline)
+    watcher = getattr(request.app.state, "file_watcher", None) if hasattr(request, "app") else None
+    return FolderService(db=db, semantic_pipeline=semantic_pipeline, watcher=watcher)
 
 
-def get_indexing_service() -> IndexingService:
+def get_indexing_service(request: Request) -> IndexingService:
     """Dependency providing configured IndexingService instance."""
+    if hasattr(request, "app") and getattr(request.app.state, "indexing_service", None):
+        return request.app.state.indexing_service
+
     db = DatabaseConnectionManager()
     settings = get_settings()
     vector_store = ChromaVectorStore(persist_dir=settings.vectors_dir)

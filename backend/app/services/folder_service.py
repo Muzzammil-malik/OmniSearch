@@ -23,9 +23,11 @@ class FolderService:
         self,
         db: DatabaseConnectionManager,
         semantic_pipeline: Optional[Any] = None,
+        watcher: Optional[Any] = None,
     ) -> None:
         self.db = db
         self.semantic_pipeline = semantic_pipeline
+        self.watcher = watcher
 
     def register_folder(self, path: str, enabled: bool = True) -> FolderResponse:
         """Register a new folder path for indexing.
@@ -67,6 +69,12 @@ class FolderService:
             stats = FolderRepository.get_folder_stats(conn, record.id)
 
         assert stats is not None
+        if enabled and self.watcher and record.id is not None:
+            try:
+                self.watcher.add_folder(record.id, record.path)
+            except Exception as exc:
+                logger.warning("Could not register folder #%d with watcher: %s", record.id, exc)
+
         logger.info("Successfully registered folder #%d: %s", record.id, norm_path)
         return FolderResponse(**stats)
 
@@ -104,6 +112,15 @@ class FolderService:
             stats = FolderRepository.get_folder_stats(conn, folder_id)
 
         assert stats is not None
+        if self.watcher:
+            try:
+                if enabled:
+                    self.watcher.add_folder(folder_id, folder.path)
+                else:
+                    self.watcher.remove_folder(folder_id)
+            except Exception as exc:
+                logger.warning("Could not update watcher for folder #%d: %s", folder_id, exc)
+
         logger.info("Updated folder #%d enabled=%s", folder_id, enabled)
         return FolderResponse(**stats)
 
@@ -113,6 +130,12 @@ class FolderService:
         Raises:
             FolderNotFoundError: If folder_id does not exist.
         """
+        if self.watcher:
+            try:
+                self.watcher.remove_folder(folder_id)
+            except Exception as exc:
+                logger.warning("Could not remove folder #%d from watcher: %s", folder_id, exc)
+
         with self.db.transaction() as conn:
             folder = FolderRepository.get_by_id(conn, folder_id)
             if not folder:

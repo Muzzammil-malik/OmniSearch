@@ -128,6 +128,24 @@ class FolderRepository:
         return updated
 
     @staticmethod
+    def find_matching_folder(conn: sqlite3.Connection, file_path: str) -> Optional[FolderRecord]:
+        """Find the most specific active folder containing the given file path."""
+        norm_file = normalize_folder_path(file_path).lower()
+        all_folders = FolderRepository.list_all(conn)
+        matching: List[FolderRecord] = []
+        for f in all_folders:
+            if not f.enabled:
+                continue
+            norm_folder = normalize_folder_path(f.path).lower()
+            if norm_file == norm_folder or norm_file.startswith(norm_folder + "\\") or norm_file.startswith(norm_folder + "/"):
+                matching.append(f)
+        if not matching:
+            return None
+        # Return most specific (longest path)
+        matching.sort(key=lambda x: len(x.path), reverse=True)
+        return matching[0]
+
+    @staticmethod
     def get_folder_stats(conn: sqlite3.Connection, folder_id: int) -> Optional[dict]:
         """Fetch folder record along with aggregated file and chunk counts."""
         cursor = conn.cursor()

@@ -7,13 +7,22 @@ import pymupdf
 
 from app.core.logging import get_logger
 from app.ingestion.extractors.base import BaseExtractor
+from app.ingestion.ocr.service import OcrService
 from app.schemas.extraction import ExtractedDocument, ExtractedSegment, ExtractionStatus, SegmentType
 
 logger = get_logger(__name__)
 
 
 class PdfExtractor(BaseExtractor):
-    """Extracts text page by page from PDF documents using PyMuPDF."""
+    """Extracts text page by page from PDF documents using PyMuPDF, with local OCR fallback."""
+
+    def __init__(
+        self,
+        ocr_service: Optional[OcrService] = None,
+        ocr_enabled: bool = True,
+    ) -> None:
+        self.ocr_enabled = ocr_enabled
+        self.ocr_service = ocr_service or (OcrService() if ocr_enabled else None)
 
     @property
     def supported_extensions(self) -> Set[str]:
@@ -23,8 +32,12 @@ class PdfExtractor(BaseExtractor):
     def category(self) -> str:
         return "pdf"
 
-    def extract(self, file_path: Path, sha256: Optional[str] = None) -> ExtractedDocument:
-        path = Path(file_path).resolve()
+    def extract(self, file_path: Any, sha256: Optional[str] = None) -> ExtractedDocument:
+        if hasattr(file_path, "path"):
+            path = Path(file_path.path).resolve()
+        else:
+            path = Path(file_path).resolve()
+
         if not path.is_file():
             return self.create_failed_document(path, f"File does not exist: {path}", sha256=sha256)
 
@@ -76,8 +89,25 @@ class PdfExtractor(BaseExtractor):
                 }
 
                 page_text = page.get_text("text").strip()
+                is_ocr_text = False
+
+                # Fallback to OCR for scanned / image-only pages
+                if not page_text and self.ocr_service and self.ocr_service.is_available:
+                    try:
+                        images = page.get_images()
+                        if images or len(doc) <= 50:
+                            ocr_extracted = self.ocr_service.ocr_page(page)
+                            if ocr_extracted:
+                                page_text = ocr_extracted
+                                is_ocr_text = True
+                    except Exception as ocr_err:
+                        logger.warning("OCR attempt failed on page %d: %s", page_num, ocr_err)
+
                 if page_text:
                     has_any_text = True
+                    if is_ocr_text:
+                        page_meta["ocr"] = True
+                        doc_metadata["ocr_applied"] = True
                     segments.append(
                         ExtractedSegment(
                             content=page_text,

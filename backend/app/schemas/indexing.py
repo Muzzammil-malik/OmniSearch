@@ -32,12 +32,25 @@ class IndexJobResponse(BaseModel):
     error_message: Optional[str] = Field(default=None, description="Optional failure reason")
 
 
+class WatcherStatusResponse(BaseModel):
+    """Status metrics for real-time filesystem monitoring and event coordinator."""
+
+    enabled: bool = Field(default=False, description="Whether filesystem watcher is enabled in settings")
+    active: bool = Field(default=False, description="Whether watcher background thread is running")
+    watched_folders: List[str] = Field(default_factory=list, description="Currently watched folder paths")
+    pending_events: int = Field(default=0, description="Debouncer pending event count")
+    coordinator_queue_size: int = Field(default=0, description="Coordinator queue size")
+    processed_events: int = Field(default=0, description="Events processed by coordinator")
+    current_file: Optional[str] = Field(default=None, description="File currently being processed by coordinator")
+
+
 class IndexingStatusResponse(BaseModel):
     """Status overview of the indexing engine and recent operations."""
 
     is_indexing: bool = Field(..., description="Whether an indexing job is currently actively running")
     current_job: Optional[IndexJobResponse] = Field(default=None, description="Currently running job if any")
     recent_jobs: List[IndexJobResponse] = Field(default_factory=list, description="Recent indexing jobs")
+    watcher: Optional[WatcherStatusResponse] = Field(default=None, description="Automatic filesystem watcher telemetry")
 
 
 class IndexingStatsResponse(BaseModel):
