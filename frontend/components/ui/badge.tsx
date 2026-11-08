@@ -4,7 +4,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "cyan" | "green" | "amber" | "red" | "purple" | "outline";
+  variant?: "default" | "cyan" | "green" | "amber" | "red" | "purple" | "outline" | "slate";
   size?: "sm" | "md";
 }
 
@@ -16,19 +16,27 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const sizeClasses = {
-    sm: "text-[10px] px-1.5 py-0.5 rounded font-mono font-medium leading-none",
-    md: "text-xs px-2.5 py-0.5 rounded-full font-medium leading-normal",
+    sm: "text-[11px] px-2 py-0.5 rounded-sm font-mono leading-none",
+    md: "text-xs px-3 py-1 rounded-pill font-medium leading-normal",
   }[size];
 
   const variantClasses = {
     default:
-      "bg-slate-200 text-slate-800 dark:bg-navy-800 dark:text-slate-300 border border-slate-300/80 dark:border-navy-700",
-    cyan: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20",
-    green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
-    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
-    red: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20",
-    purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20",
-    outline: "bg-transparent text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-navy-700",
+      "bg-claude-surface-card/60 text-claude-ink dark:bg-claude-surface-dark-soft dark:text-claude-on-dark border border-claude-hairline dark:border-claude-muted/30",
+    slate:
+      "bg-claude-primary text-claude-on-primary dark:bg-claude-on-dark dark:text-claude-ink font-medium tracking-caption-wide uppercase",
+    cyan:
+      "bg-claude-muted/15 text-claude-muted dark:bg-claude-muted/25 dark:text-claude-on-dark border border-claude-muted/20",
+    green:
+      "bg-emerald-600/10 text-emerald-800 dark:text-emerald-400 border border-emerald-600/20",
+    amber:
+      "bg-amber-600/10 text-amber-800 dark:text-amber-400 border border-amber-600/20",
+    red:
+      "bg-claude-error/10 text-red-700 dark:text-red-400 border border-claude-error/20",
+    purple:
+      "bg-claude-primary/10 text-claude-primary dark:bg-claude-primary-active/40 dark:text-claude-on-dark border border-claude-primary/20",
+    outline:
+      "bg-transparent text-claude-muted dark:text-claude-on-dark-soft border border-claude-hairline dark:border-claude-surface-dark-soft",
   }[variant];
 
   return (
@@ -45,4 +53,3 @@ export function Badge({
     </span>
   );
 }
-

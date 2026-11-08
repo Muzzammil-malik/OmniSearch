@@ -36,6 +36,7 @@ htmlcov/
 .ruff_cache/
 
 # Node.js & Next.js
+*.tsbuildinfo
 frontend/node_modules/
 node_modules/
 frontend/.next/

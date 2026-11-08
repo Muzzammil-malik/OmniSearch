@@ -41,35 +41,36 @@ export function Dialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
+      {/* Deep blue-black backdrop per design.md */}
       <div
-        className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-claude-surface-dark/75 backdrop-blur-xs transition-opacity animate-in fade-in"
         onClick={onClose}
       />
 
       {/* Dialog content panel */}
       <div
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-750 p-6 shadow-2xl transition-all animate-in zoom-in-95",
+          "relative z-10 w-full max-w-lg rounded-lg bg-claude-canvas dark:bg-claude-surface-dark-elevated border border-claude-hairline dark:border-claude-surface-dark-soft p-6 shadow-surface transition-all animate-in zoom-in-95",
           className
         )}
       >
-        <div className="flex items-start justify-between pb-4 border-b border-slate-200 dark:border-navy-800">
+        <div className="flex items-start justify-between pb-4 border-b border-claude-hairline/60 dark:border-claude-surface-dark-soft">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="font-serif text-xl font-normal tracking-serif-sm text-claude-ink dark:text-claude-on-dark">
               {title}
             </h3>
             {description && (
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm text-claude-muted dark:text-claude-on-dark-soft leading-normal">
                 {description}
               </p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
+            className="h-8 w-8 rounded-full flex items-center justify-center text-claude-muted hover:text-claude-ink dark:text-claude-on-dark-soft dark:hover:text-claude-on-dark hover:bg-claude-surface-card/60 dark:hover:bg-claude-surface-dark-soft transition-colors"
+            title="Close dialog (Esc)"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -78,4 +79,3 @@ export function Dialog({
     </div>
   );
 }
-

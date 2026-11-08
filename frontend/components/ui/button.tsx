@@ -23,24 +23,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const sizeClasses = {
-      xs: "text-xs px-2.5 py-1 rounded-md h-7 gap-1.5",
-      sm: "text-xs font-medium px-3 py-1.5 rounded-lg h-8 gap-2",
-      md: "text-sm font-medium px-4 py-2 rounded-lg h-9 gap-2",
-      lg: "text-sm font-semibold px-5 py-2.5 rounded-xl h-11 gap-2.5",
-      icon: "p-2 rounded-lg h-9 w-9 justify-center items-center",
+      xs: "text-xs px-2.5 py-1 rounded-sm h-7 gap-1.5",
+      sm: "text-xs font-medium px-3 py-1.5 rounded-sm h-8 gap-2",
+      md: "text-sm font-medium px-4 py-2 rounded-md h-10 gap-2",
+      lg: "text-sm font-medium px-5 py-2.5 rounded-lg h-11 gap-2.5",
+      icon: "h-9 w-9 rounded-full justify-center items-center p-0",
     }[size];
 
     const variantClasses = {
       primary:
-        "bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold shadow-sm hover:shadow-glow transition-all active:scale-[0.98]",
+        "bg-claude-primary hover:bg-claude-primary-active text-claude-on-primary font-medium shadow-subtle active:bg-claude-primary-active dark:bg-claude-on-dark dark:hover:bg-claude-on-dark-soft dark:text-claude-ink transition-all",
       secondary:
-        "bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-navy-800 dark:hover:bg-navy-750 dark:text-slate-200 border border-slate-300 dark:border-navy-700 active:scale-[0.98] transition-all",
+        "bg-claude-canvas hover:bg-claude-surface-card text-claude-ink dark:bg-claude-surface-dark-elevated dark:hover:bg-claude-surface-dark-soft dark:text-claude-on-dark border border-claude-hairline dark:border-claude-surface-dark-soft active:scale-[0.99] transition-all",
       ghost:
-        "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-navy-800/80 active:scale-[0.98] transition-all",
+        "text-claude-ink hover:bg-claude-surface-card/60 dark:text-claude-on-dark dark:hover:bg-claude-surface-dark-elevated/70 active:scale-[0.99] transition-all",
       outline:
-        "bg-transparent border border-slate-300 dark:border-navy-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-[0.98] transition-all",
+        "bg-transparent border border-claude-hairline dark:border-claude-surface-dark-soft text-claude-ink dark:text-claude-on-dark hover:bg-claude-surface-card/40 dark:hover:bg-claude-surface-dark-elevated/50 active:scale-[0.99] transition-all",
       danger:
-        "bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 active:scale-[0.98] transition-all",
+        "bg-claude-error/10 hover:bg-claude-error/20 text-claude-error border border-claude-error/30 active:scale-[0.99] transition-all",
     }[variant];
 
     return (
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={cn(
-          "inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
+          "inline-flex items-center justify-center select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude-primary/30 dark:focus-visible:ring-claude-on-dark/30 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
           sizeClasses,
           variantClasses,
           className
@@ -84,4 +84,3 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
-

@@ -4,27 +4,63 @@
 
 @layer base {
   :root {
-    --bg-base: #f8fafc;
-    --bg-surface: #ffffff;
-    --bg-surface-elevated: #f1f5f9;
-    --bg-border: #e2e8f0;
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #64748b;
-    --accent: #0891b2;
-    --accent-glow: rgba(8, 145, 178, 0.15);
+    /* design.md authoritative light palette */
+    --bg-canvas: #CCD0CF;
+    --bg-surface: #DCE1E0;
+    --bg-surface-elevated: #E8ECEB;
+    --bg-surface-card: #CCD0CF;
+    --bg-border: #9BA8AB;
+    --bg-border-soft: #CCD0CF;
+
+    /* Text hierarchy */
+    --text-ink: #06141B;
+    --text-body-strong: #11212D;
+    --text-body: #253745;
+    --text-muted: #4A5C6A;
+    --text-muted-soft: #7C8B8E;
+
+    /* Actions */
+    --primary: #253745;
+    --primary-active: #11212D;
+    --primary-disabled: #9BA8AB;
+    --on-primary: #FFFFFF;
+
+    /* Legacy CSS Variable bridge */
+    --bg-base: var(--bg-canvas);
+    --text-primary: var(--text-ink);
+    --text-secondary: var(--text-body);
+    --accent: #253745;
+    --accent-glow: rgba(37, 55, 69, 0.15);
   }
 
   .dark {
-    --bg-base: #070b14;
-    --bg-surface: #0b1120;
-    --bg-surface-elevated: #111c33;
-    --bg-border: #1e293b;
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent: #06b6d4;
-    --accent-glow: rgba(6, 182, 212, 0.2);
+    /* design.md authoritative dark product surface */
+    --bg-canvas: #06141B;
+    --bg-surface: #11212D;
+    --bg-surface-elevated: #172836;
+    --bg-surface-card: #14232F;
+    --bg-border: #253745;
+    --bg-border-soft: #1B2B38;
+
+    /* Text hierarchy */
+    --text-ink: #F0F4F4;
+    --text-body-strong: #E2E6E5;
+    --text-body: #CCD0CF;
+    --text-muted: #9BA8AB;
+    --text-muted-soft: #6E7C80;
+
+    /* Actions */
+    --primary: #CCD0CF;
+    --primary-active: #B8BCBB;
+    --primary-disabled: #4A5C6A;
+    --on-primary: #06141B;
+
+    /* Legacy CSS Variable bridge */
+    --bg-base: var(--bg-canvas);
+    --text-primary: var(--text-ink);
+    --text-secondary: var(--text-body);
+    --accent: #9BA8AB;
+    --accent-glow: rgba(155, 168, 171, 0.15);
   }
 
   * {
@@ -32,15 +68,16 @@
   }
 
   body {
-    background-color: var(--bg-base);
-    color: var(--text-primary);
+    background-color: var(--bg-canvas);
+    color: var(--text-body);
+    font-family: StyreneB, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* Sleek modern scrollbars */
+  /* Editorial desaturated scrollbars */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -51,33 +88,68 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.2);
+    background: rgba(155, 168, 171, 0.4);
     border-radius: 9999px;
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background: rgba(51, 65, 85, 0.6);
+    background: rgba(74, 92, 106, 0.5);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.4);
+    background: rgba(74, 92, 106, 0.7);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(71, 85, 105, 0.8);
+    background: rgba(155, 168, 171, 0.7);
   }
 
-  /* Safe mark highlights for search terms */
+  /* Editorial mark highlights for matched query terms */
   mark {
-    background-color: rgba(6, 182, 212, 0.22);
-    color: #0891b2;
+    background-color: rgba(37, 55, 69, 0.14);
+    color: #11212D;
     font-weight: 500;
     border-radius: 3px;
     padding: 0.05em 0.25em;
   }
 
   .dark mark {
-    background-color: rgba(6, 182, 212, 0.25);
-    color: #67e8f9;
+    background-color: rgba(155, 168, 171, 0.24);
+    color: #E2E6E5;
+  }
+}
+
+@layer utilities {
+  /* Typography scale tokens from design.md */
+  .font-display-xl {
+    font-family: var(--font-serif, "Copernicus", "Tiempos Headline", "Cormorant Garamond", Garamond, serif);
+    font-size: 64px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+  }
+
+  .font-display-lg {
+    font-family: var(--font-serif, "Copernicus", "Tiempos Headline", "Cormorant Garamond", Garamond, serif);
+    font-size: 48px;
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -1.0px;
+  }
+
+  .font-display-md {
+    font-family: var(--font-serif, "Copernicus", "Tiempos Headline", "Cormorant Garamond", Garamond, serif);
+    font-size: 36px;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+  }
+
+  .font-display-sm {
+    font-family: var(--font-serif, "Copernicus", "Tiempos Headline", "Cormorant Garamond", Garamond, serif);
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.3px;
   }
 }

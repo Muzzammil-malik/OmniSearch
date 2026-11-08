@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased selection:bg-cyan-500/20 selection:text-cyan-300">
+      <body className="antialiased selection:bg-claude-primary/20 selection:text-claude-ink dark:selection:bg-claude-muted/40 dark:selection:text-claude-on-dark bg-claude-canvas dark:bg-claude-surface-dark text-claude-body dark:text-claude-on-dark font-sans">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
