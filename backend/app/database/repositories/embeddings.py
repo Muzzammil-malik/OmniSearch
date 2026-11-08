@@ -62,7 +62,7 @@ class ChunkEmbeddingRepository:
         cursor = conn.cursor()
         query = """
         SELECT c.id AS chunk_id, c.file_id, c.chunk_index, c.content,
-               f.filename, f.metadata_json AS file_metadata, f.path AS file_path, f.file_type, f.folder_id,
+               f.filename, f.metadata_json AS file_metadata, f.path AS file_path, f.file_type, f.folder_id, f.sha256 AS file_sha256,
                c.page_number, c.slide_number, c.sheet_name, c.row_number, c.start_line, c.end_line
         FROM chunks c
         JOIN files f ON c.file_id = f.id

@@ -184,11 +184,32 @@ def migration_v3(conn: sqlite3.Connection) -> None:
     cursor.close()
 
 
+def migration_v4(conn: sqlite3.Connection) -> None:
+    """Phase 10.5 migration: embedding_cache table for content-addressed embedding deduplication."""
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS embedding_cache (
+        cache_key TEXT PRIMARY KEY,
+        content_sha256 TEXT NOT NULL,
+        model_name TEXT NOT NULL,
+        modality TEXT NOT NULL,
+        dimensions INTEGER NOT NULL,
+        pipeline_version INTEGER NOT NULL,
+        embedding_blob BLOB NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_embedding_cache_content ON embedding_cache(content_sha256);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_embedding_cache_model ON embedding_cache(model_name, modality);")
+    cursor.close()
+
+
 # Ordered migration registry: (version, name, migration_function)
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "001_initial_schema", migration_v1),
     (2, "002_fts5_search", migration_v2),
     (3, "003_semantic_embeddings", migration_v3),
+    (4, "004_embedding_cache", migration_v4),
 ]
 
 

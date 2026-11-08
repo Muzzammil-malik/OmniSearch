@@ -94,6 +94,8 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
             model = self.manager.get_sentence_transformer(self.config)
             with Image.open(path) as img:
                 img_rgb = img.convert("RGB")
+                if max(img_rgb.size) > 768:
+                    img_rgb.thumbnail((768, 768), Image.Resampling.LANCZOS)
                 embeddings = model.encode({"image": [img_rgb]}, normalize_embeddings=True)
                 return self._to_normalized_vector(embeddings)
         except Exception as e:

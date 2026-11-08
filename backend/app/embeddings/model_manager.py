@@ -89,13 +89,26 @@ class EmbeddingModelManager:
         """
         with self._op_lock:
             if (
-                self.is_loaded
+                self._tokenizer is not None
+                and self._model is not None
                 and self._loaded_model_id == config.model_id
                 and self._loaded_device == config.device
             ):
                 return self._tokenizer, self._model
 
-            # Need to load or reload model
+            # Check if SentenceTransformer is already loaded and share its underlying modules to prevent dual weight allocation
+            if self._st_model is not None and self._st_model_id == config.model_id:
+                try:
+                    if hasattr(self._st_model, "__getitem__") and hasattr(self._st_model[0], "tokenizer") and hasattr(self._st_model[0], "auto_model"):
+                        self._tokenizer = self._st_model[0].tokenizer
+                        self._model = self._st_model[0].auto_model
+                        self._loaded_model_id = config.model_id
+                        self._loaded_device = config.device
+                        return self._tokenizer, self._model
+                except Exception as e:
+                    logger.debug("Could not extract tokenizer/auto_model from loaded SentenceTransformer: %s", e)
+
+            # Need to load or reload model directly
             try:
                 import torch
                 from transformers import AutoModel, AutoTokenizer

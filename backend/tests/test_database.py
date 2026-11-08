@@ -167,13 +167,15 @@ def test_phase3_migration_startup_regression(tmp_path: Path) -> None:
         cur = verify_conn.cursor()
         cur.execute("SELECT version, name, applied_at FROM schema_migrations ORDER BY version ASC;")
         rows = cur.fetchall()
-        assert len(rows) == 3
+        assert len(rows) == 4
         assert rows[0][0] == 1
         assert rows[0][1] == "001_initial_schema"
         assert rows[1][0] == 2
         assert rows[1][1] == "002_fts5_search"
         assert rows[2][0] == 3
         assert rows[2][1] == "003_semantic_embeddings"
+        assert rows[3][0] == 4
+        assert rows[3][1] == "004_embedding_cache"
 
         # 5. Verify pre-existing data was preserved and backfilled into chunks_fts
         cur.execute("SELECT chunk_id, file_id, filename, content FROM chunks_fts WHERE chunks_fts MATCH 'confidential';")
