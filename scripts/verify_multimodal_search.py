@@ -82,7 +82,27 @@ def generate_test_media(tmp_dir: Path):
         encoding="utf-8",
     )
 
-    return media_dir, img_path, audio_path, doc_path
+    # 4. Video: Ocean waves MP4
+    video_path = media_dir / "ocean_waves.mp4"
+    import av
+    container = av.open(str(video_path), mode="w")
+    stream = container.add_stream("mpeg4", rate=10)
+    stream.width = 128
+    stream.height = 128
+    stream.pix_fmt = "yuv420p"
+    for i in range(8):
+        base = np.zeros((128, 128, 3), dtype=np.uint8)
+        base[:, :, 0] = np.clip(10 + i * 15, 0, 255)
+        base[:, :, 1] = np.clip(80 + i * 20, 0, 255)
+        base[:, :, 2] = np.clip(180 + i * 8, 0, 255)
+        frame = av.VideoFrame.from_ndarray(base, format="rgb24")
+        for packet in stream.encode(frame):
+            container.mux(packet)
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
+
+    return media_dir, img_path, audio_path, doc_path, video_path
 
 
 def main():
@@ -112,27 +132,37 @@ def main():
     # Temporary directory for test run
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_str:
         tmp_dir = Path(tmp_str)
-        media_dir, img_path, audio_path, doc_path = generate_test_media(tmp_dir)
+        media_dir, img_path, audio_path, doc_path, video_path = generate_test_media(tmp_dir)
 
         print("\n[2/5] Testing direct multimodal embedding generation on CPU:")
 
-        # Query text embedding
+        # 1. Query text embedding
         t0 = time.perf_counter()
         q_vec = embedder.embed_query("sunset over the ocean")
         t_q = time.perf_counter() - t0
-        print(f"  [Text Query] Shape: {len(q_vec)} | L2 Norm: {np.linalg.norm(q_vec):.4f} | Time: {t_q:.2f}s")
+        print(f"  [Text Query] Shape: {len(q_vec)} | L2 Norm: {np.linalg.norm(q_vec):.4f} | Finite: {np.all(np.isfinite(q_vec))} | Time: {t_q:.2f}s")
+        assert len(q_vec) == 768 and np.all(np.isfinite(q_vec)) and abs(np.linalg.norm(q_vec) - 1.0) < 1e-4
 
-        # Image embedding
+        # 2. Image embedding
         t0 = time.perf_counter()
         img_vec = embedder.embed_image(str(img_path))
         t_img = time.perf_counter() - t0
-        print(f"  [Image File] Shape: {len(img_vec)} | L2 Norm: {np.linalg.norm(img_vec):.4f} | Time: {t_img:.2f}s")
+        print(f"  [Image File] Shape: {len(img_vec)} | L2 Norm: {np.linalg.norm(img_vec):.4f} | Finite: {np.all(np.isfinite(img_vec))} | Time: {t_img:.2f}s")
+        assert len(img_vec) == 768 and np.all(np.isfinite(img_vec)) and abs(np.linalg.norm(img_vec) - 1.0) < 1e-4
 
-        # Audio embedding
+        # 3. Audio embedding
         t0 = time.perf_counter()
         audio_vec = embedder.embed_audio(str(audio_path))
         t_audio = time.perf_counter() - t0
-        print(f"  [Audio File] Shape: {len(audio_vec)} | L2 Norm: {np.linalg.norm(audio_vec):.4f} | Time: {t_audio:.2f}s")
+        print(f"  [Audio File] Shape: {len(audio_vec)} | L2 Norm: {np.linalg.norm(audio_vec):.4f} | Finite: {np.all(np.isfinite(audio_vec))} | Time: {t_audio:.2f}s")
+        assert len(audio_vec) == 768 and np.all(np.isfinite(audio_vec)) and abs(np.linalg.norm(audio_vec) - 1.0) < 1e-4
+
+        # 4. Video embedding
+        t0 = time.perf_counter()
+        vid_vec = embedder.embed_video(str(video_path))
+        t_vid = time.perf_counter() - t0
+        print(f"  [Video File] Shape: {len(vid_vec)} | L2 Norm: {np.linalg.norm(vid_vec):.4f} | Finite: {np.all(np.isfinite(vid_vec))} | Time: {t_vid:.2f}s")
+        assert len(vid_vec) == 768 and np.all(np.isfinite(vid_vec)) and abs(np.linalg.norm(vid_vec) - 1.0) < 1e-4
 
         # Cross-modal cosine similarities
         sim_sunset_img = cosine_sim(q_vec, img_vec)
@@ -143,6 +173,16 @@ def main():
         print(f"  -> Audio Tone Cosine Similarity:  {sim_sunset_audio:.4f}")
         assert sim_sunset_img > sim_sunset_audio, "Visual sunset match must have higher similarity than audio tone!"
         print("  -> Alignment verified: Sunset image is significantly more similar to query than audio.")
+
+        # Cross-modal query for video
+        q_vid_vec = embedder.embed_query("ocean waves moving water")
+        sim_video_match = cosine_sim(q_vid_vec, vid_vec)
+        sim_audio_mismatch = cosine_sim(q_vid_vec, audio_vec)
+        print(f"  Query: 'ocean waves moving water'")
+        print(f"  -> Video Clip Cosine Similarity:   {sim_video_match:.4f}")
+        print(f"  -> Audio Tone Cosine Similarity:  {sim_audio_mismatch:.4f}")
+        assert sim_video_match > sim_audio_mismatch, "Ocean video match must have higher similarity than audio tone!"
+        print("  -> Alignment verified: Video clip correctly retrieved by cross-modal semantic query.")
 
         print("\n[4/5] Testing full indexing pipeline with SQLite & ChromaDB:")
         db_path = tmp_dir / "verify_omnisearch.db"
@@ -161,13 +201,13 @@ def main():
         t_index = time.perf_counter() - t0
         print(f"  Indexing job status: {job.status} ({job.successful_files} files, {t_index:.2f}s)")
         assert job.status == "completed"
-        assert job.successful_files == 3
+        assert job.successful_files == 4
 
         with db.connection() as conn:
             indexed_files = FileRepository.list_by_folder(conn, f_id)
             print(f"  SQLite indexed files: {[f.filename for f in indexed_files]}")
         print(f"  ChromaDB vector count: {vector_store.count()}")
-        assert vector_store.count() == 3
+        assert vector_store.count() == 4
 
         print("\n[5/5] Executing Multimodal Unified & Hybrid Search Queries:")
         keyword_engine = KeywordSearchEngine(db=db)
@@ -181,6 +221,7 @@ def main():
         print(f"    #1 Rank: {top_match.filename} ({top_match.file_type}) | RRF: {top_match.rrf_score:.4f} | Sim: {top_match.cosine_similarity}")
         assert top_match.filename == "golden_sunset.jpg"
         assert top_match.content_type == "image"
+        assert top_match.embedding_source == "native_multimodal"
 
         # Search 2: "acoustic tone" -> Should retrieve audio as #1
         res2 = hybrid_engine.search("acoustic tone")
@@ -189,10 +230,36 @@ def main():
         print(f"    #1 Rank: {top_audio.filename} ({top_audio.file_type}) | RRF: {top_audio.rrf_score:.4f} | Sim: {top_audio.cosine_similarity}")
         assert top_audio.filename == "acoustic_tone.wav"
         assert top_audio.content_type == "audio"
+        assert top_audio.embedding_source == "native_multimodal"
+
+        # Search 3: "ocean waves" -> Should retrieve video
+        res3 = semantic_engine.search("ocean waves")
+        print(f"  Semantic Search: 'ocean waves' -> {len(res3.results)} results")
+        vid_results = [r for r in res3.results if r.file_type == "video"]
+        assert len(vid_results) == 1
+        top_vid = vid_results[0]
+        print(f"    Video Result: {top_vid.filename} ({top_vid.content_type}) | Sim: {top_vid.cosine_similarity} | Source: {top_vid.embedding_source}")
+        assert top_vid.filename == "ocean_waves.mp4"
+        assert top_vid.content_type == "video"
+        assert top_vid.embedding_source == "native_multimodal"
+        assert top_vid.media_metadata is not None
+        assert top_vid.media_metadata.get("width") == 128
+
+        # Video deletion test
+        print("\n  Testing Video Lifecycle (Deletion & ChromaDB Vector Cleanup):")
+        deleted = indexer.delete_single_file(video_path)
+        assert deleted is True
+        print(f"    Deleted {video_path.name}: ChromaDB count reduced to {vector_store.count()}")
+        assert vector_store.count() == 3
+        res_post_delete = semantic_engine.search("ocean waves")
+        assert all(r.filename != "ocean_waves.mp4" for r in res_post_delete.results)
+        print("    Verified deleted video no longer appears in semantic search results.")
 
         print("\n" + "=" * 70)
         print(" ALL MULTIMODAL VERIFICATION CHECKS PASSED SUCCESSFULLY!")
-        print(" EmbeddingGemma 2 correctly embeds and retrieves images, audio, and documents")
+        print(" EmbeddingGemma 2 correctly embeds and retrieves text, images, audio, and video")
+        print(" in a unified 768-D local vector space.")
+        print("=" * 70)
         print(" in a unified 768-D local vector space.")
         print("=" * 70)
 

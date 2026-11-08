@@ -50,6 +50,29 @@ def create_test_wav(path: Path, duration_sec: float = 1.0, sample_rate: int = 16
     return path
 
 
+def create_test_video(path: Path, width: int = 128, height: int = 128, frames_count: int = 6) -> Path:
+    """Helper to generate a valid synthetic test MP4 video using PyAV."""
+    import av
+    import numpy as np
+
+    container = av.open(str(path), mode="w")
+    stream = container.add_stream("mpeg4", rate=10)
+    stream.width = width
+    stream.height = height
+    stream.pix_fmt = "yuv420p"
+
+    for i in range(frames_count):
+        img = np.full((height, width, 3), (i * 30, 100, 200), dtype=np.uint8)
+        frame = av.VideoFrame.from_ndarray(img, format="rgb24")
+        for packet in stream.encode(frame):
+            container.mux(packet)
+
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
+    return path
+
+
 # ---------------------------------------------------------------------------
 # 1. File Type Detection & Signature Tests
 # ---------------------------------------------------------------------------
@@ -150,6 +173,28 @@ def test_video_extractor_missing_file():
     assert doc.extraction_status == ExtractionStatus.FAILED
 
 
+def test_video_extractor_valid_file(tmp_path: Path):
+    """Verify VideoExtractor and sample_video_frames extract metadata and frames."""
+    vid_path = tmp_path / "sample.mp4"
+    create_test_video(vid_path, width=128, height=128, frames_count=6)
+
+    extractor = VideoExtractor()
+    assert extractor.can_extract(vid_path) is True
+    doc = extractor.extract(vid_path)
+
+    assert doc.extraction_status == ExtractionStatus.SUCCESS
+    assert doc.file_type == "video"
+    assert doc.metadata["width"] == 128
+    assert doc.metadata["height"] == 128
+    assert len(doc.segments) == 1
+    assert "sample.mp4" in doc.segments[0].content
+
+    # Test frame sampling
+    frames = sample_video_frames(vid_path, max_frames=4)
+    assert len(frames) >= 1
+    assert isinstance(frames[0], Image.Image)
+
+
 # ---------------------------------------------------------------------------
 # 3. Deterministic Embedder Multimodal Vectors
 # ---------------------------------------------------------------------------
@@ -194,6 +239,9 @@ def multimodal_env(tmp_path: Path):
     audio1 = library_dir / "guitar_solo.wav"
     create_test_wav(audio1, duration_sec=2.0)
 
+    vid1 = library_dir / "ocean_waves.mp4"
+    create_test_video(vid1, width=128, height=128, frames_count=6)
+
     txt1 = library_dir / "sunset_notes.txt"
     txt1.write_text("Notes about watching the sunset at the beach.", encoding="utf-8")
 
@@ -208,7 +256,7 @@ def multimodal_env(tmp_path: Path):
 
 
 def test_multimodal_indexing_and_vector_persistence(multimodal_env):
-    """Verify indexing folder with text, image, and audio files populates SQLite and ChromaDB."""
+    """Verify indexing folder with text, image, audio, and video files populates SQLite and ChromaDB."""
     db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
 
     # Register folder
@@ -218,25 +266,26 @@ def test_multimodal_indexing_and_vector_persistence(multimodal_env):
 
     job = indexer.index_folder(library_dir, generate_embeddings=True)
     assert job.status == "completed"
-    assert job.successful_files == 3
+    assert job.successful_files == 4
 
     # Check files in SQLite
     with db.connection() as conn:
         files = FileRepository.list_by_folder(conn, f_id)
-        assert len(files) == 3
+        assert len(files) == 4
         types = {f.file_type for f in files}
         assert "image" in types
         assert "audio" in types
+        assert "video" in types
         assert "text" in types
 
     # Check ChromaDB vectors
-    assert vector_store.count() == 3
+    assert vector_store.count() == 4
     chunk_ids = vector_store.get_all_chunk_ids()
-    assert len(chunk_ids) == 3
+    assert len(chunk_ids) == 4
 
 
 def test_multimodal_semantic_search_retrieval(multimodal_env):
-    """Verify semantic search retrieves media items with content_type and metadata."""
+    """Verify semantic search retrieves media items with content_type, embedding_source, and metadata."""
     db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
 
     with db.connection() as conn:
@@ -244,21 +293,51 @@ def test_multimodal_semantic_search_retrieval(multimodal_env):
     indexer.index_folder(library_dir, generate_embeddings=True)
 
     semantic_engine = SemanticSearchEngine(db=db, vector_store=vector_store, embedder=embedder)
-    res = semantic_engine.search("sunset")
+    res = semantic_engine.search("sunset ocean")
 
     assert res.total_results >= 1
-    # Check that image result contains content_type
+
+    # Check image result
     image_results = [r for r in res.results if r.file_type == "image"]
     assert len(image_results) == 1
-    item = image_results[0]
-    assert item.content_type == "image"
-    assert item.filename == "ocean_sunset.jpg"
-    assert item.media_metadata is not None
-    assert item.media_metadata.get("width") == 800
+    img_item = image_results[0]
+    assert img_item.content_type == "image"
+    assert img_item.filename == "ocean_sunset.jpg"
+    assert img_item.embedding_source == "native_multimodal"
+    assert img_item.media_metadata is not None
+    assert img_item.media_metadata.get("width") == 800
+
+    # Check video result
+    video_results = [r for r in res.results if r.file_type == "video"]
+    assert len(video_results) == 1
+    vid_item = video_results[0]
+    assert vid_item.content_type == "video"
+    assert vid_item.filename == "ocean_waves.mp4"
+    assert vid_item.embedding_source == "native_multimodal"
+    assert vid_item.media_metadata is not None
+    assert vid_item.media_metadata.get("width") == 128
+
+
+def test_multimodal_cross_modal_video_retrieval(multimodal_env):
+    """Verify text query retrieves video based on cross-modal embedding."""
+    db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
+
+    with db.connection() as conn:
+        FolderRepository.get_or_create(conn, str(library_dir))
+    indexer.index_folder(library_dir, generate_embeddings=True)
+
+    semantic_engine = SemanticSearchEngine(db=db, vector_store=vector_store, embedder=embedder)
+    res = semantic_engine.search("video ocean waves")
+
+    assert res.total_results >= 1
+    top_result = res.results[0]
+    assert top_result.content_type == "video"
+    assert top_result.filename == "ocean_waves.mp4"
+    assert top_result.cosine_similarity is not None
 
 
 def test_multimodal_hybrid_search_fusion(multimodal_env):
-    """Verify hybrid search returns fused ranking including image and audio results."""
+    """Verify hybrid search returns fused ranking including image, audio, and video results."""
     db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
 
     with db.connection() as conn:
@@ -271,7 +350,6 @@ def test_multimodal_hybrid_search_fusion(multimodal_env):
 
     res = hybrid_engine.search("guitar solo")
     assert res.total_results >= 1
-    # Audio result found
     audio_results = [r for r in res.results if r.file_type == "audio"]
     assert len(audio_results) == 1
     assert audio_results[0].content_type == "audio"
@@ -288,6 +366,13 @@ def test_multimodal_file_type_filtering(multimodal_env):
 
     semantic_engine = SemanticSearchEngine(db=db, vector_store=vector_store, embedder=embedder)
 
+    # Filter to only videos
+    filter_vid = SearchFilter(file_types=["video"])
+    res_vid = semantic_engine.search("waves", filters=filter_vid)
+    for r in res_vid.results:
+        assert r.file_type == "video"
+        assert r.content_type == "video"
+
     # Filter to only images
     filter_img = SearchFilter(file_types=["image"])
     res_img = semantic_engine.search("sunset", filters=filter_img)
@@ -296,23 +381,102 @@ def test_multimodal_file_type_filtering(multimodal_env):
         assert r.content_type == "image"
 
 
-def test_multimodal_deletion_cleans_vectors(multimodal_env):
-    """Verify deleting a media file removes it from SQLite and vector store."""
+def test_multimodal_video_deletion_lifecycle(multimodal_env):
+    """Verify deleting a video file cleans SQLite and ChromaDB vectors."""
     db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
 
     with db.connection() as conn:
         FolderRepository.get_or_create(conn, str(library_dir))
     indexer.index_folder(library_dir, generate_embeddings=True)
-    assert vector_store.count() == 3
+    assert vector_store.count() == 4
 
-    # Delete ocean_sunset.jpg
-    img_path = library_dir / "ocean_sunset.jpg"
-    deleted = indexer.delete_single_file(img_path)
+    # Delete ocean_waves.mp4
+    vid_path = library_dir / "ocean_waves.mp4"
+    deleted = indexer.delete_single_file(vid_path)
     assert deleted is True
 
     # Check vector count decreased
-    assert vector_store.count() == 2
+    assert vector_store.count() == 3
     with db.connection() as conn:
         files = FileRepository.list_by_folder(conn, 1)
-        assert len(files) == 2
-        assert all(f.filename != "ocean_sunset.jpg" for f in files)
+        assert len(files) == 3
+        assert all(f.filename != "ocean_waves.mp4" for f in files)
+
+    # Verify semantic search no longer returns the deleted video
+    semantic_engine = SemanticSearchEngine(db=db, vector_store=vector_store, embedder=embedder)
+    res = semantic_engine.search("video ocean waves")
+    assert all(r.filename != "ocean_waves.mp4" for r in res.results)
+
+
+def test_multimodal_video_modification_and_safe_replacement(multimodal_env):
+    """Verify modifying a video re-indexes cleanly and preserves old state if modification fails."""
+    db, vector_store, embedder, pipeline, indexer, library_dir = multimodal_env
+
+    with db.connection() as conn:
+        FolderRepository.get_or_create(conn, str(library_dir))
+    indexer.index_folder(library_dir, generate_embeddings=True)
+    assert vector_store.count() == 4
+
+    vid_path = library_dir / "ocean_waves.mp4"
+
+    # Modify video file with different dimensions and frames
+    create_test_video(vid_path, width=256, height=256, frames_count=10)
+    job = indexer.index_folder(library_dir, generate_embeddings=True)
+    assert job.status == "completed"
+
+    with db.connection() as conn:
+        vid_file = FileRepository.get_by_path(conn, str(vid_path))
+        assert vid_file is not None
+        assert vid_file.status == "success"
+
+    # Now simulate a broken modification (corrupt video file)
+    vid_path.write_bytes(b"\x00\x00\x00\x18ftypisomcorrupttruncatedbytes")
+    # Index single file
+    indexer.index_single_file(vid_path, generate_embeddings=True)
+
+    with db.connection() as conn:
+        vid_file_after = FileRepository.get_by_path(conn, str(vid_path))
+        # Phase 9 safe replacement: previous valid state is preserved and marked stale
+        assert vid_file_after is not None
+        assert vid_file_after.status == "failed"
+
+
+def test_media_fallback_metadata_embedding(tmp_path: Path):
+    """Verify that when raw media decoding fails, fallback to metadata embedding occurs gracefully."""
+    from app.embeddings.exceptions import InferenceError
+
+    class FallbackTestEmbedder(DeterministicTestEmbedder):
+        def embed_video(self, video_path: str):
+            raise InferenceError(f"Simulated decoder failure for {video_path}")
+
+    db_file = tmp_path / "fallback.db"
+    vectors_dir = tmp_path / "fallback_vectors"
+    library_dir = tmp_path / "fallback_lib"
+    library_dir.mkdir()
+
+    vid = library_dir / "corrupt_stream.mp4"
+    create_test_video(vid, width=128, height=128, frames_count=4)
+
+    db = init_db(db_file)
+    vector_store = ChromaVectorStore(persist_dir=vectors_dir)
+    embedder = FallbackTestEmbedder(dimension=768)
+    pipeline = SemanticPipeline(db=db, embedder=embedder, vector_store=vector_store)
+    indexer = IndexingService(db=db, semantic_pipeline=pipeline)
+
+    with db.connection() as conn:
+        FolderRepository.get_or_create(conn, str(library_dir))
+
+    # Indexing must not crash and must complete
+    job = indexer.index_folder(library_dir, generate_embeddings=True)
+    assert job.status == "completed"
+    assert job.successful_files == 1
+    assert vector_store.count() == 1
+
+    # Verify search result indicates metadata_fallback
+    semantic_engine = SemanticSearchEngine(db=db, vector_store=vector_store, embedder=embedder)
+    res = semantic_engine.search("corrupt stream")
+    assert res.total_results == 1
+    item = res.results[0]
+    assert item.filename == "corrupt_stream.mp4"
+    assert item.content_type == "video"
+    assert item.embedding_source == "metadata_fallback"

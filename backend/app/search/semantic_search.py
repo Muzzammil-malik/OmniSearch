@@ -166,6 +166,11 @@ class SemanticSearchEngine:
             content_type = ftype if ftype in {"image", "audio", "video"} else "document"
             media_metadata = file_meta if content_type in {"image", "audio", "video"} else None
 
+            chroma_meta = match.get("metadata", {}) or {}
+            emb_source = chroma_meta.get("embedding_source")
+            if not emb_source:
+                emb_source = "native_multimodal" if content_type in {"image", "audio", "video"} else "text"
+
             item = SemanticSearchResultItem(
                 file_id=file_id,
                 chunk_id=cid,
@@ -189,6 +194,7 @@ class SemanticSearchEngine:
                 end_line=rec.get("end_line"),
                 metadata=custom_meta,
                 media_metadata=media_metadata,
+                embedding_source=emb_source,
             )
             results_list.append(item)
 

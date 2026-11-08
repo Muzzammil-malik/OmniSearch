@@ -205,6 +205,14 @@ export function SearchResults({
                         : (item.semantic_score || 0).toFixed(2)}
                     </span>
                   </div>
+                  {item.embedding_source && (
+                    <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Embedding Source</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">
+                        {item.embedding_source}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

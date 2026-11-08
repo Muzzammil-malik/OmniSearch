@@ -91,6 +91,8 @@ class SemanticPipeline:
             if not has_media:
                 # Fast path: all documents
                 embeddings = self.embedder.embed_documents(contents, titles=titles)
+                for meta in metadatas:
+                    meta["embedding_source"] = "text"
             else:
                 # Multimodal dispatch: image, audio, video, or fallback to text
                 embeddings = []
@@ -99,21 +101,28 @@ class SemanticPipeline:
                     fpath = row["file_path"]
                     fname = row["filename"]
                     vec = None
+                    emb_source = "text"
                     if ftype == "image":
                         try:
                             vec = self.embedder.embed_image(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Image embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
                     elif ftype == "audio":
                         try:
                             vec = self.embedder.embed_audio(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Audio embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
                     elif ftype == "video":
                         try:
                             vec = self.embedder.embed_video(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Video embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
 
                     if vec is None:
                         # Fallback or standard document text embedding
@@ -122,6 +131,7 @@ class SemanticPipeline:
                         doc_vecs = self.embedder.embed_documents([content], titles=[title])
                         vec = doc_vecs[0]
 
+                    metadatas[i]["embedding_source"] = emb_source
                     embeddings.append(vec)
 
             # Store in ChromaDB

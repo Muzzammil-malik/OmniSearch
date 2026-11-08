@@ -43,6 +43,7 @@ export interface HybridSearchResultItem {
   end_line?: number | null;
   metadata: Record<string, unknown>;
   media_metadata?: Record<string, unknown> | null;
+  embedding_source?: "native_multimodal" | "metadata_fallback" | "text" | string | null;
   rrf_score: number;
   keyword_rank?: number | null;
   semantic_rank?: number | null;

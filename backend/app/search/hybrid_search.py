@@ -227,6 +227,7 @@ class HybridSearchEngine:
                 end_line=primary_item.end_line,
                 metadata=primary_item.metadata or {},
                 media_metadata=getattr(primary_item, "media_metadata", None),
+                embedding_source=getattr(cand.semantic_item, "embedding_source", getattr(primary_item, "embedding_source", None)),
                 rrf_score=cand.rrf_score,
                 keyword_rank=cand.keyword_rank,
                 semantic_rank=cand.semantic_rank,

@@ -71,7 +71,14 @@ class SearchResultItem(BaseModel):
     bm25_rank: float = Field(..., description="Raw SQLite FTS5 BM25 rank score (negative value; lower is better).")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
     media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
-    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
 
 class SearchResponse(BaseModel):
@@ -131,7 +138,14 @@ class SemanticSearchResultItem(BaseModel):
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
     media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
-    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
 
 class SemanticSearchResponse(BaseModel):
@@ -205,6 +219,10 @@ class HybridSearchResultItem(BaseModel):
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
     media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
     # Reciprocal Rank Fusion & Underlying Metrics
     rrf_score: float = Field(..., description="Combined Reciprocal Rank Fusion score (primary sort).")
