@@ -28,6 +28,7 @@ export interface HybridSearchResultItem {
   filename: string;
   file_path: string;
   file_type: string;
+  content_type?: "document" | "image" | "audio" | "video" | string | null;
   file_status: string;
   is_stale: boolean;
   chunk_index: number;
@@ -41,6 +42,7 @@ export interface HybridSearchResultItem {
   start_line?: number | null;
   end_line?: number | null;
   metadata: Record<string, unknown>;
+  media_metadata?: Record<string, unknown> | null;
   rrf_score: number;
   keyword_rank?: number | null;
   semantic_rank?: number | null;

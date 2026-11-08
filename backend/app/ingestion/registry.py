@@ -7,6 +7,9 @@ from app.ingestion.extractors.base import BaseExtractor
 from app.ingestion.extractors.csv import CsvExtractor
 from app.ingestion.extractors.docx import DocxExtractor
 from app.ingestion.extractors.html import HtmlExtractor
+from app.ingestion.extractors.image import ImageExtractor
+from app.ingestion.extractors.audio import AudioExtractor
+from app.ingestion.extractors.video import VideoExtractor
 from app.ingestion.extractors.pdf import PdfExtractor
 from app.ingestion.extractors.pptx import PptxExtractor
 from app.ingestion.extractors.text import TextExtractor
@@ -59,6 +62,9 @@ def create_default_registry() -> ExtractorRegistry:
     registry.register(TextExtractor())
     registry.register(CsvExtractor())
     registry.register(HtmlExtractor())
+    registry.register(ImageExtractor())
+    registry.register(AudioExtractor())
+    registry.register(VideoExtractor())
     return registry
 
 

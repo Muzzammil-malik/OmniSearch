@@ -255,6 +255,17 @@ class KeywordSearchEngine:
                 except Exception:
                     chunk_meta = {}
 
+            file_meta = {}
+            if "file_meta" in row.keys() and row["file_meta"]:
+                try:
+                    file_meta = json.loads(row["file_meta"])
+                except Exception:
+                    file_meta = {}
+
+            ftype = row["file_type"]
+            content_type = ftype if ftype in {"image", "audio", "video"} else "document"
+            media_metadata = file_meta if content_type in {"image", "audio", "video"} else None
+
             # Failed re-indexing policy: mark stale if file status is not success
             is_stale = (row["file_status"] != "success")
 
@@ -263,7 +274,8 @@ class KeywordSearchEngine:
                 chunk_id=row["chunk_id"],
                 filename=row["filename"],
                 file_path=row["file_path"],
-                file_type=row["file_type"],
+                file_type=ftype,
+                content_type=content_type,
                 file_status=row["file_status"],
                 is_stale=is_stale,
                 chunk_index=row["chunk_index"],
@@ -279,6 +291,7 @@ class KeywordSearchEngine:
                 score=normalized_score,
                 bm25_rank=bm25_val,
                 metadata=chunk_meta,
+                media_metadata=media_metadata,
             )
             items.append(item)
 

@@ -11,6 +11,7 @@ def test_scanner_discovers_supported_and_unsupported(tmp_path: Path) -> None:
     (tmp_path / "data.csv").write_text("a,b\n1,2", encoding="utf-8")
     (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     (tmp_path / "binary.bin").write_bytes(b"\x00\x01\x02")
+    (tmp_path / "archive.zip").write_bytes(b"PK\x03\x04")
 
     sub_dir = tmp_path / "subdir"
     sub_dir.mkdir()
@@ -19,7 +20,7 @@ def test_scanner_discovers_supported_and_unsupported(tmp_path: Path) -> None:
     scanner = FolderScanner()
     report = scanner.scan(tmp_path)
 
-    assert report.total_discovered == 6
+    assert report.total_discovered == 7
     supported_filenames = {f.filename for f in report.supported_files}
     unsupported_filenames = {f.filename for f in report.unsupported_files}
 
@@ -27,8 +28,9 @@ def test_scanner_discovers_supported_and_unsupported(tmp_path: Path) -> None:
     assert "script.py" in supported_filenames
     assert "data.csv" in supported_filenames
     assert "nested.md" in supported_filenames
+    assert "image.png" in supported_filenames
 
-    assert "image.png" in unsupported_filenames
+    assert "archive.zip" in unsupported_filenames
     assert "binary.bin" in unsupported_filenames
     assert len(report.scan_errors) == 0
 

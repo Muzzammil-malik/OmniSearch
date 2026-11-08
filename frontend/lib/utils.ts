@@ -93,6 +93,22 @@ export function getFileTypeBadge(fileType: string): { label: string; color: stri
     case "md":
     case "markdown":
       return { label: "MD", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" };
+    case "image":
+    case "jpg":
+    case "jpeg":
+    case "png":
+    case "webp":
+      return { label: "IMAGE", color: "bg-pink-500/10 text-pink-400 border-pink-500/20" };
+    case "audio":
+    case "mp3":
+    case "wav":
+    case "flac":
+      return { label: "AUDIO", color: "bg-teal-500/10 text-teal-400 border-teal-500/20" };
+    case "video":
+    case "mp4":
+    case "mkv":
+    case "webm":
+      return { label: "VIDEO", color: "bg-orange-500/10 text-orange-400 border-orange-500/20" };
     case "text":
     case "txt":
       return { label: "TXT", color: "bg-slate-500/10 text-slate-400 border-slate-500/20" };

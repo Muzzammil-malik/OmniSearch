@@ -130,6 +130,10 @@ class Settings(BaseSettings):
         """Resolve directory containing Tesseract language data files."""
         if self.ocr_tessdata_dir is not None:
             return self.ocr_tessdata_dir
+        # Check repo workspace data directory first if present
+        repo_tessdata = Path(__file__).resolve().parent.parent.parent / "data" / "ocr" / "tessdata"
+        if repo_tessdata.exists() and (repo_tessdata / "eng.traineddata").exists():
+            return repo_tessdata
         return self.data_dir / "ocr" / "tessdata"
 
     @property

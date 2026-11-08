@@ -66,6 +66,11 @@ export function SearchResults({
           locationText = item.end_line
             ? `Lines ${item.start_line}-${item.end_line}`
             : `Line ${item.start_line}`;
+        else if (item.media_metadata) {
+          const m = item.media_metadata as Record<string, unknown>;
+          if (m.duration_formatted) locationText = `Duration ${m.duration_formatted}`;
+          else if (m.width && m.height) locationText = `${m.width}x${m.height}`;
+        }
 
         return (
           <div

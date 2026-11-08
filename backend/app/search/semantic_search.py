@@ -155,12 +155,24 @@ class SemanticSearchEngine:
                 except Exception:
                     pass
 
+            file_meta: Dict[str, Any] = {}
+            if rec.get("file_meta"):
+                try:
+                    file_meta = json.loads(rec["file_meta"])
+                except Exception:
+                    pass
+
+            ftype = rec["file_type"]
+            content_type = ftype if ftype in {"image", "audio", "video"} else "document"
+            media_metadata = file_meta if content_type in {"image", "audio", "video"} else None
+
             item = SemanticSearchResultItem(
                 file_id=file_id,
                 chunk_id=cid,
                 filename=rec["filename"],
                 file_path=rec["file_path"],
-                file_type=rec["file_type"],
+                file_type=ftype,
+                content_type=content_type,
                 file_status=rec["file_status"],
                 is_stale=is_stale,
                 chunk_index=rec["chunk_index"],
@@ -176,6 +188,7 @@ class SemanticSearchEngine:
                 start_line=rec.get("start_line"),
                 end_line=rec.get("end_line"),
                 metadata=custom_meta,
+                media_metadata=media_metadata,
             )
             results_list.append(item)
 
@@ -236,7 +249,8 @@ class SemanticSearchEngine:
         query = f"""
         SELECT c.id AS chunk_id, c.file_id, c.chunk_index, c.content, c.metadata_json AS chunk_meta,
                c.page_number, c.slide_number, c.sheet_name, c.row_number, c.start_line, c.end_line,
-               f.filename, f.path AS file_path, f.file_type, f.status AS file_status, f.folder_id
+               f.filename, f.path AS file_path, f.file_type, f.status AS file_status, f.folder_id,
+               f.metadata_json AS file_meta
         FROM chunks c
         JOIN files f ON c.file_id = f.id
         WHERE c.id IN ({placeholders});

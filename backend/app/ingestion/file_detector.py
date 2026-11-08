@@ -20,6 +20,9 @@ MARKDOWN_EXTENSIONS: Set[str] = {".md", ".markdown"}
 HTML_EXTENSIONS: Set[str] = {".html", ".htm", ".xhtml"}
 CSV_EXTENSIONS: Set[str] = {".csv", ".tsv"}
 DOCUMENT_EXTENSIONS: Set[str] = {".pdf", ".docx", ".pptx", ".xlsx"}
+IMAGE_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+AUDIO_EXTENSIONS: Set[str] = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
+VIDEO_EXTENSIONS: Set[str] = {".mp4", ".mkv", ".webm", ".mov", ".avi"}
 
 ALL_SUPPORTED_EXTENSIONS: Set[str] = (
     CODE_EXTENSIONS
@@ -28,6 +31,9 @@ ALL_SUPPORTED_EXTENSIONS: Set[str] = (
     | HTML_EXTENSIONS
     | CSV_EXTENSIONS
     | DOCUMENT_EXTENSIONS
+    | IMAGE_EXTENSIONS
+    | AUDIO_EXTENSIONS
+    | VIDEO_EXTENSIONS
 )
 
 # Known binary executable signatures to block/reject
@@ -64,6 +70,12 @@ class FileTypeDetector:
             return "pptx"
         if ext == ".xlsx":
             return "xlsx"
+        if ext in IMAGE_EXTENSIONS:
+            return "image"
+        if ext in AUDIO_EXTENSIONS:
+            return "audio"
+        if ext in VIDEO_EXTENSIONS:
+            return "video"
         if ext in HTML_EXTENSIONS:
             return "html"
         if ext in CSV_EXTENSIONS:
@@ -145,10 +157,30 @@ class FileTypeDetector:
                 return False, f"invalid_{category}", f"Office container inspection failed: {exc}"
             return True, category, None
 
-        # 4. Text-based files (TXT, Code, Markdown, CSV, HTML)
+        # 4. Image validation
+        if category == "image":
+            # Signatures for JPEG, PNG, GIF, BMP, WEBP, TIFF
+            is_valid_image = (
+                header.startswith(b"\xff\xd8\xff")  # JPEG
+                or header.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
+                or header.startswith(b"GIF87a") or header.startswith(b"GIF89a")  # GIF
+                or header.startswith(b"BM")  # BMP
+                or (header.startswith(b"RIFF") and b"WEBP" in header[8:16])  # WEBP
+                or header.startswith(b"II*\x00") or header.startswith(b"MM\x00*")  # TIFF
+            )
+            if not is_valid_image:
+                return False, "invalid_image", f"File has image extension '{ext}' but header signature does not match image formats"
+            return True, "image", None
+
+        # 5. Audio and Video validation (binary multimedia)
+        if category in {"audio", "video"}:
+            return True, category, None
+
+        # 6. Text-based files (TXT, Code, Markdown, CSV, HTML)
         # Check for binary null-byte contamination (heuristic for non-text binary files)
-        if b"\x00" in header:
-            return False, "binary_mismatch", f"File extension '{ext}' expects text, but null bytes were detected"
+        if category in {"text", "code", "markdown", "csv", "html"}:
+            if b"\x00" in header:
+                return False, "binary_mismatch", f"File extension '{ext}' expects text, but null bytes were detected"
 
         return True, category, None
 

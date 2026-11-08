@@ -65,6 +65,7 @@ class SemanticPipeline:
                 ftype = row["file_type"]
                 folder_id = row["folder_id"]
                 c_index = row["chunk_index"]
+                fpath = row["file_path"]
 
                 chunk_ids.append(cid)
                 file_ids.append(fid)
@@ -74,6 +75,7 @@ class SemanticPipeline:
                     "file_id": fid,
                     "filename": fname,
                     "file_type": ftype,
+                    "content_type": ftype if ftype in {"image", "audio", "video"} else "document",
                     "folder_id": folder_id,
                     "chunk_index": c_index,
                     "page_number": row["page_number"],
@@ -81,10 +83,46 @@ class SemanticPipeline:
                     "sheet_name": row["sheet_name"],
                     "start_line": row["start_line"],
                     "end_line": row["end_line"],
+                    "path": fpath,
                 })
 
-            # Generate embeddings using embedder
-            embeddings = self.embedder.embed_documents(contents, titles=titles)
+            # Check if any rows are media files
+            has_media = any(r["file_type"] in {"image", "audio", "video"} for r in unembedded_rows)
+            if not has_media:
+                # Fast path: all documents
+                embeddings = self.embedder.embed_documents(contents, titles=titles)
+            else:
+                # Multimodal dispatch: image, audio, video, or fallback to text
+                embeddings = []
+                for i, row in enumerate(unembedded_rows):
+                    ftype = row["file_type"]
+                    fpath = row["file_path"]
+                    fname = row["filename"]
+                    vec = None
+                    if ftype == "image":
+                        try:
+                            vec = self.embedder.embed_image(fpath)
+                        except Exception as e:
+                            logger.warning("Image embedding failed for %s, falling back to text: %s", fname, e)
+                    elif ftype == "audio":
+                        try:
+                            vec = self.embedder.embed_audio(fpath)
+                        except Exception as e:
+                            logger.warning("Audio embedding failed for %s, falling back to text: %s", fname, e)
+                    elif ftype == "video":
+                        try:
+                            vec = self.embedder.embed_video(fpath)
+                        except Exception as e:
+                            logger.warning("Video embedding failed for %s, falling back to text: %s", fname, e)
+
+                    if vec is None:
+                        # Fallback or standard document text embedding
+                        title = titles[i]
+                        content = contents[i]
+                        doc_vecs = self.embedder.embed_documents([content], titles=[title])
+                        vec = doc_vecs[0]
+
+                    embeddings.append(vec)
 
             # Store in ChromaDB
             self.vector_store.upsert(

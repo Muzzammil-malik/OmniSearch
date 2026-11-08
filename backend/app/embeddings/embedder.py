@@ -64,6 +64,74 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
 
         return self._generate_embeddings(formatted_prompts)
 
+    def _to_normalized_vector(self, raw_embedding: Any) -> List[float]:
+        """Convert raw numpy or tensor model output to normalized 1D float list."""
+        import numpy as np
+        arr = np.asarray(raw_embedding, dtype=np.float32)
+        if arr.ndim == 2:
+            arr = arr[0]
+        elif arr.ndim > 2:
+            arr = arr.reshape(-1)
+
+        # MRL truncation
+        if self.config.dimension < arr.shape[0]:
+            arr = arr[: self.config.dimension]
+
+        norm = float(np.linalg.norm(arr))
+        if norm > 1e-9:
+            arr = arr / norm
+        return arr.tolist()
+
+    def embed_image(self, image_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for an image file."""
+        from pathlib import Path
+        from PIL import Image
+        path = Path(image_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Image file does not exist: {path}")
+
+        try:
+            model = self.manager.get_sentence_transformer(self.config)
+            with Image.open(path) as img:
+                img_rgb = img.convert("RGB")
+                embeddings = model.encode({"image": [img_rgb]}, normalize_embeddings=True)
+                return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Image embedding inference failed for {path.name}: {e}") from e
+
+    def embed_audio(self, audio_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for an audio file."""
+        from pathlib import Path
+        path = Path(audio_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Audio file does not exist: {path}")
+
+        try:
+            model = self.manager.get_sentence_transformer(self.config)
+            embeddings = model.encode({"audio": [str(path)]}, normalize_embeddings=True)
+            return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Audio embedding inference failed for {path.name}: {e}") from e
+
+    def embed_video(self, video_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for a video file."""
+        from pathlib import Path
+        from app.ingestion.extractors.video import sample_video_frames
+        path = Path(video_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Video file does not exist: {path}")
+
+        try:
+            frames = sample_video_frames(path, max_frames=16)
+            if not frames:
+                raise InferenceError(f"No decodable frames in video file: {path.name}")
+
+            model = self.manager.get_sentence_transformer(self.config)
+            embeddings = model.encode({"video": [frames]}, normalize_embeddings=True)
+            return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Video embedding inference failed for {path.name}: {e}") from e
+
     def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Batch-process formatted text prompts through the model and mean pool."""
         if not texts:

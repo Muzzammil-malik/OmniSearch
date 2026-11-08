@@ -45,6 +45,10 @@ class SearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -66,6 +70,8 @@ class SearchResultItem(BaseModel):
     score: float = Field(..., description="Normalized positive relevance score (higher is better).")
     bm25_rank: float = Field(..., description="Raw SQLite FTS5 BM25 rank score (negative value; lower is better).")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
 
 
 class SearchResponse(BaseModel):
@@ -102,6 +108,10 @@ class SemanticSearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -120,6 +130,8 @@ class SemanticSearchResultItem(BaseModel):
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
 
 
 class SemanticSearchResponse(BaseModel):
@@ -169,6 +181,10 @@ class HybridSearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -188,6 +204,7 @@ class HybridSearchResultItem(BaseModel):
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
 
     # Reciprocal Rank Fusion & Underlying Metrics
     rrf_score: float = Field(..., description="Combined Reciprocal Rank Fusion score (primary sort).")

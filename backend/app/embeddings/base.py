@@ -34,6 +34,39 @@ class BaseEmbedder(ABC):
             List of L2-normalized float vectors, each of length `dimension`.
         """
 
+    def embed_image(self, image_path: str) -> List[float]:
+        """Generate a normalized embedding vector for an image file.
+
+        Args:
+            image_path: Absolute path to the source image file.
+
+        Returns:
+            L2-normalized float vector of length `dimension`.
+        """
+        raise NotImplementedError
+
+    def embed_audio(self, audio_path: str) -> List[float]:
+        """Generate a normalized embedding vector for an audio file.
+
+        Args:
+            audio_path: Absolute path to the source audio file.
+
+        Returns:
+            L2-normalized float vector of length `dimension`.
+        """
+        raise NotImplementedError
+
+    def embed_video(self, video_path: str) -> List[float]:
+        """Generate a normalized embedding vector for a video file.
+
+        Args:
+            video_path: Absolute path to the source video file.
+
+        Returns:
+            L2-normalized float vector of length `dimension`.
+        """
+        raise NotImplementedError
+
     @property
     @abstractmethod
     def dimension(self) -> int:
