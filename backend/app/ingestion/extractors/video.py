@@ -71,27 +71,15 @@ def sample_video_frames(
                 duration_sec = float(container.duration / av.time.AV_TIME_BASE)
 
             if duration_sec <= 0:
-                # Fallback: grab up to adaptive budget sequentially
-                max_budget = min(max_frames, 4)
+                # Fallback: grab up to max_frames sequentially
                 for frame in container.decode(stream):
-                    pil_img = frame.to_image().convert("RGB")
-                    if max(pil_img.size) > 384:
-                        pil_img.thumbnail((384, 384), Image.Resampling.BILINEAR)
-                    frames.append(pil_img)
-                    if len(frames) >= max_budget:
+                    frames.append(frame.to_image().convert("RGB"))
+                    if len(frames) >= max_frames:
                         break
                 return frames
 
-            # Adaptive sampling budget: short clips need fewer frames
-            if duration_sec <= 3.0:
-                effective_max = min(max_frames, 4)
-            elif duration_sec <= 10.0:
-                effective_max = min(max_frames, 8)
-            else:
-                effective_max = min(max_frames, 16)
-
             # Calculate target sample timestamps in seconds
-            total_expected_samples = max(1, min(effective_max, int(math.ceil(duration_sec * target_fps))))
+            total_expected_samples = max(1, min(max_frames, int(math.ceil(duration_sec * target_fps))))
             interval = duration_sec / max(total_expected_samples, 1)
             target_timestamps = [i * interval for i in range(total_expected_samples)]
 
@@ -104,22 +92,16 @@ def sample_video_frames(
                 if current_target_idx < len(target_timestamps):
                     target_time = target_timestamps[current_target_idx]
                     if frame_time >= target_time:
-                        pil_img = frame.to_image().convert("RGB")
-                        if max(pil_img.size) > 384:
-                            pil_img.thumbnail((384, 384), Image.Resampling.BILINEAR)
-                        frames.append(pil_img)
+                        frames.append(frame.to_image().convert("RGB"))
                         current_target_idx += 1
-                        if len(frames) >= effective_max:
+                        if len(frames) >= max_frames:
                             break
 
             # If no frames were collected due to timestamp issues, grab the first available frame
             if not frames:
                 container.seek(0)
                 for frame in container.decode(stream):
-                    pil_img = frame.to_image().convert("RGB")
-                    if max(pil_img.size) > 384:
-                        pil_img.thumbnail((384, 384), Image.Resampling.BILINEAR)
-                    frames.append(pil_img)
+                    frames.append(frame.to_image().convert("RGB"))
                     break
 
     except Exception as exc:

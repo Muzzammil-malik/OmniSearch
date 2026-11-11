@@ -167,15 +167,13 @@ def test_phase3_migration_startup_regression(tmp_path: Path) -> None:
         cur = verify_conn.cursor()
         cur.execute("SELECT version, name, applied_at FROM schema_migrations ORDER BY version ASC;")
         rows = cur.fetchall()
-        assert len(rows) == 4
+        assert len(rows) == 3
         assert rows[0][0] == 1
         assert rows[0][1] == "001_initial_schema"
         assert rows[1][0] == 2
         assert rows[1][1] == "002_fts5_search"
         assert rows[2][0] == 3
         assert rows[2][1] == "003_semantic_embeddings"
-        assert rows[3][0] == 4
-        assert rows[3][1] == "004_embedding_cache"
 
         # 5. Verify pre-existing data was preserved and backfilled into chunks_fts
         cur.execute("SELECT chunk_id, file_id, filename, content FROM chunks_fts WHERE chunks_fts MATCH 'confidential';")
@@ -209,5 +207,31 @@ def test_schema_migrations_missing_name_retroactively_added(tmp_path: Path) -> N
         cols = {row[1] for row in cur.fetchall()}
         assert "name" in cols
         cur.close()
+
+
+def test_folder_repository_list_active(tmp_path: Path) -> None:
+    """Verify FolderRepository.list_active returns only enabled folders."""
+    db = init_db(db_path=tmp_path / "folders.db")
+
+    with db.transaction() as conn:
+        f1 = FolderRepository.get_or_create(conn, "/docs/active1")
+        f2 = FolderRepository.get_or_create(conn, "/docs/disabled")
+        f3 = FolderRepository.get_or_create(conn, "/docs/active2")
+
+        # Disable f2
+        cursor = conn.cursor()
+        cursor.execute("UPDATE folders SET enabled = 0 WHERE id = ?;", (f2.id,))
+        cursor.close()
+
+    with db.connection() as conn:
+        all_folders = FolderRepository.list_all(conn)
+        active_folders = FolderRepository.list_active(conn)
+
+    assert len(all_folders) == 3
+    assert len(active_folders) == 2
+    active_paths = {f.path for f in active_folders}
+    assert not any("disabled" in p for p in active_paths)
+    assert any("active1" in p for p in active_paths)
+    assert any("active2" in p for p in active_paths)
 
 

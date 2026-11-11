@@ -25,17 +25,21 @@ class VectorStoreStatus(BaseModel):
     total_vectors: int = Field(default=0, description="Total embedded vectors stored in collection")
     unembedded_chunks: int = Field(default=0, description="Chunks in SQLite awaiting vector generation")
     persist_dir: str = Field(..., description="ChromaDB storage directory path")
+    error_message: Optional[str] = Field(default=None, description="Error details if vector store is unavailable")
+    error_category: Optional[str] = Field(default=None, description="Diagnostic category of failure (e.g. application_control_policy_blocked)")
 
 
 class EmbeddingModelStatus(BaseModel):
     """Status and availability of the local EmbeddingGemma 2 model."""
 
-    status: str = Field(..., description="Model readiness: 'ready', 'weights_missing', 'loaded'")
+    status: str = Field(..., description="Model readiness: 'ready', 'weights_missing', 'loaded', 'dependency_unavailable'")
     model_id: str = Field(..., description="Resolved model identifier or local weights path")
     dimension: int = Field(..., description="Embedding dimension")
     device: str = Field(..., description="Target execution device ('cpu' or 'cuda')")
     is_loaded: bool = Field(default=False, description="Whether model weights are actively resident in RAM")
     local_weights_present: bool = Field(default=False, description="Whether verified weights exist on disk")
+    error_message: Optional[str] = Field(default=None, description="Error details if model dependency failed")
+    error_category: Optional[str] = Field(default=None, description="Diagnostic category of failure (e.g. application_control_policy_blocked)")
 
 
 class SystemStatusResponse(BaseModel):

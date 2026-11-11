@@ -498,11 +498,20 @@ class IndexingService:
         embedding_error: Optional[str] = None
         if generate_embeddings and self.semantic_pipeline:
             try:
-                embedded_count = self.semantic_pipeline.sync_embeddings()
-                logger.info("Generated semantic embeddings for %d chunks", embedded_count)
+                with self.db.connection() as conn:
+                    unembedded_count = ChunkEmbeddingRepository.count_unembedded(conn)
+                    total_chunks_count = ChunkRepository.count_total(conn)
+
+                if total_chunks_count == 0:
+                    logger.info("Indexing job #%d: No chunks exist in library to embed", job_id)
+                elif unembedded_count == 0:
+                    logger.info("Indexing job #%d: All %d chunks already have embeddings (0 pending)", job_id, total_chunks_count)
+                else:
+                    embedded_count = self.semantic_pipeline.sync_embeddings()
+                    logger.info("Indexing job #%d: Generated semantic embeddings for %d of %d pending chunks", job_id, embedded_count, unembedded_count)
             except Exception as exc:
                 embedding_error = f"Embedding generation failed: {exc}"
-                logger.error("Error generating semantic embeddings during indexing: %s", exc, exc_info=True)
+                logger.error("Error generating semantic embeddings during indexing #%d: %s", job_id, exc, exc_info=True)
 
         # 5. Finalize job status
         err_msg = embedding_error

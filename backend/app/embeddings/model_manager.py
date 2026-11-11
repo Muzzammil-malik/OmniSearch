@@ -5,6 +5,7 @@ import logging
 import threading
 from typing import Optional, Tuple, Any
 
+from app.core.dependencies import TorchDependencyManager, NativeDependencyError
 from app.embeddings.configuration import EmbeddingConfig
 from app.embeddings.exceptions import ModelLoadError, ModelNotFoundError
 
@@ -46,8 +47,10 @@ class EmbeddingModelManager:
                 return self._st_model
 
             try:
-                import torch
+                torch = TorchDependencyManager.get_instance().ensure_torch()
                 from sentence_transformers import SentenceTransformer
+            except NativeDependencyError as e:
+                raise ModelLoadError(f"PyTorch native dependency failed ({e.category}): {e.original_exception}") from e
             except ImportError as e:
                 raise ModelLoadError(f"Required library sentence_transformers is not installed: {e}") from e
 
@@ -89,29 +92,18 @@ class EmbeddingModelManager:
         """
         with self._op_lock:
             if (
-                self._tokenizer is not None
-                and self._model is not None
+                self.is_loaded
                 and self._loaded_model_id == config.model_id
                 and self._loaded_device == config.device
             ):
                 return self._tokenizer, self._model
 
-            # Check if SentenceTransformer is already loaded and share its underlying modules to prevent dual weight allocation
-            if self._st_model is not None and self._st_model_id == config.model_id:
-                try:
-                    if hasattr(self._st_model, "__getitem__") and hasattr(self._st_model[0], "tokenizer") and hasattr(self._st_model[0], "auto_model"):
-                        self._tokenizer = self._st_model[0].tokenizer
-                        self._model = self._st_model[0].auto_model
-                        self._loaded_model_id = config.model_id
-                        self._loaded_device = config.device
-                        return self._tokenizer, self._model
-                except Exception as e:
-                    logger.debug("Could not extract tokenizer/auto_model from loaded SentenceTransformer: %s", e)
-
-            # Need to load or reload model directly
+            # Need to load or reload model
             try:
-                import torch
+                torch = TorchDependencyManager.get_instance().ensure_torch()
                 from transformers import AutoModel, AutoTokenizer
+            except NativeDependencyError as e:
+                raise ModelLoadError(f"PyTorch native dependency failed ({e.category}): {e.original_exception}") from e
             except ImportError as e:
                 raise ModelLoadError(
                     f"Required libraries (torch, transformers) are not installed: {e}"

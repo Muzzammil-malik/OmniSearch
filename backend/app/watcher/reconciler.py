@@ -180,11 +180,11 @@ class StartupReconciler:
     def reconcile_all_active_folders(self) -> List[ReconciliationSummary]:
         """Perform reconciliation across all enabled registered folders."""
         with self.db.connection() as conn:
-            folders = FolderRepository.list_all(conn)
+            folders = FolderRepository.list_active(conn)
 
         summaries: List[ReconciliationSummary] = []
         for f in folders:
-            if f.enabled and f.id is not None:
+            if f.id is not None:
                 summaries.append(self.reconcile_folder(f.id, Path(f.path)))
 
         return summaries

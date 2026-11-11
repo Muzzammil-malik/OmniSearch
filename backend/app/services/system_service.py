@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.config import Settings, get_settings
+from app.core.dependencies import TorchDependencyManager
 from app.core.logging import get_logger
 from app.database.connection import DatabaseConnectionManager
 from app.database.repositories.chunks import ChunkRepository
@@ -108,14 +109,24 @@ class SystemService:
         status = "available"
         total_vectors = 0
         unembedded = 0
+        error_msg = None
+        error_cat = None
 
         try:
-            total_vectors = self.vector_store.count()
-            if total_vectors == 0:
-                status = "empty"
+            if hasattr(self.vector_store, "is_available") and not self.vector_store.is_available():
+                status = "unavailable"
+                init_err = self.vector_store.get_initialization_error()
+                error_msg = str(init_err) if init_err else "Vector store failed to initialize"
+                error_cat = self.vector_store.get_error_category()
+            else:
+                total_vectors = self.vector_store.count()
+                if total_vectors == 0:
+                    status = "empty"
         except Exception as exc:
             logger.warning("ChromaDB vector store check warning: %s", exc)
             status = "unavailable"
+            error_msg = str(exc)
+            error_cat = getattr(exc, "category", None) or "unavailable"
 
         try:
             with self.db.connection() as conn:
@@ -129,6 +140,8 @@ class SystemService:
             total_vectors=total_vectors,
             unembedded_chunks=unembedded,
             persist_dir=persist_dir,
+            error_message=error_msg,
+            error_category=error_cat,
         )
 
     def _get_embedding_model_status(self) -> EmbeddingModelStatus:
@@ -140,8 +153,15 @@ class SystemService:
         manager = EmbeddingModelManager.get_instance()
         is_loaded = manager.is_loaded
 
+        torch_mgr = TorchDependencyManager.get_instance()
+        torch_avail = torch_mgr.is_available()
+        torch_err = torch_mgr.get_original_exception()
+        torch_cat = torch_mgr.get_error_category()
+
         if is_loaded:
             status = "loaded"
+        elif not torch_avail and torch_mgr._initialized:
+            status = "dependency_unavailable"
         elif local_weights_present:
             status = "ready"
         else:
@@ -154,5 +174,7 @@ class SystemService:
             device=self.settings.embedding_device,
             is_loaded=is_loaded,
             local_weights_present=local_weights_present,
+            error_message=str(torch_err) if torch_err else None,
+            error_category=torch_cat,
         )
 

@@ -1,14 +1,12 @@
 """Semantic indexing pipeline orchestrating chunk embedding and ChromaDB synchronization."""
 
-import hashlib
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from app.database.connection import DatabaseConnectionManager
-from app.database.repositories.cache import EmbeddingCacheRepository
 from app.database.repositories.embeddings import ChunkEmbeddingRepository
 from app.embeddings.base import BaseEmbedder
-from app.vector_store.chroma import ChromaVectorStore
+from app.vector_store.chroma import ChromaVectorStore, VectorStoreUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +37,20 @@ class SemanticPipeline:
         """
         total_embedded = 0
 
+        # Check if any unembedded chunks exist before attempting model or vector store access
+        with self.db.connection() as conn:
+            initial_rows = ChunkEmbeddingRepository.get_unembedded_chunks(conn, limit=1)
+        if not initial_rows:
+            return 0
+
+        # Unembedded chunks exist: ensure vector store is available
+        if hasattr(self.vector_store, "is_available") and not self.vector_store.is_available():
+            init_err = getattr(self.vector_store, "_init_error", None) or "ChromaDB is unavailable"
+            raise VectorStoreUnavailableError(
+                f"Vector store is unavailable for embedding persistence: {init_err}",
+                original_exception=getattr(self.vector_store, "_init_error", None),
+            )
+
         while True:
             limit = self.batch_size
             if max_chunks is not None:
@@ -58,9 +70,6 @@ class SemanticPipeline:
             contents: List[str] = []
             titles: List[Optional[str]] = []
             metadatas: List[dict] = []
-            cache_keys: List[str] = []
-            content_shas: List[str] = []
-            modalities: List[str] = []
 
             for row in unembedded_rows:
                 cid = row["chunk_id"]
@@ -91,129 +100,53 @@ class SemanticPipeline:
                     "path": fpath,
                 })
 
-                modality = ftype if ftype in {"image", "audio", "video"} else "text"
-                modalities.append(modality)
-
-                # Compute content sha
-                if modality == "text":
-                    c_sha = hashlib.sha256(c_content.encode("utf-8")).hexdigest()
-                else:
-                    c_sha = (
-                        row["file_sha256"]
-                        if ("file_sha256" in row.keys() and row["file_sha256"])
-                        else hashlib.sha256(fpath.encode("utf-8")).hexdigest()
-                    )
-                content_shas.append(c_sha)
-
-                # Compute deterministic cache key
-                k = EmbeddingCacheRepository.compute_cache_key(
-                    content_sha256=c_sha,
-                    model_name=self.embedder.model_id,
-                    modality=modality,
-                    dimensions=self.embedder.dimension,
-                )
-                cache_keys.append(k)
-
-            # Query persistent cache in SQLite
-            with self.db.connection() as conn:
-                cached_vectors = EmbeddingCacheRepository.get_batch(conn, cache_keys)
-
-            embeddings: List[Optional[List[float]]] = [None] * len(unembedded_rows)
-            new_cache_records: List[Tuple[str, str, str, str, int, List[float]]] = []
-            cache_hit_count = 0
-
-            # 1. Populate cache hits
-            for i, k in enumerate(cache_keys):
-                if k in cached_vectors:
-                    embeddings[i] = cached_vectors[k]
-                    mod = modalities[i]
-                    metadatas[i]["embedding_source"] = "native_multimodal" if mod in {"image", "audio", "video"} else "text"
-                    cache_hit_count += 1
-
-            # 2. Gather uncached text chunks for a single efficient batched forward pass
-            uncached_text_indices: List[int] = []
-            uncached_text_contents: List[str] = []
-            uncached_text_titles: List[Optional[str]] = []
-
-            for i in range(len(unembedded_rows)):
-                if embeddings[i] is None and modalities[i] == "text":
-                    uncached_text_indices.append(i)
-                    uncached_text_contents.append(contents[i])
-                    uncached_text_titles.append(titles[i])
-
-            if uncached_text_contents:
-                batch_vecs = self.embedder.embed_documents(uncached_text_contents, titles=uncached_text_titles)
-                for idx, v in zip(uncached_text_indices, batch_vecs):
-                    embeddings[idx] = v
-                    metadatas[idx]["embedding_source"] = "text"
-                    new_cache_records.append((
-                        cache_keys[idx],
-                        content_shas[idx],
-                        self.embedder.model_id,
-                        "text",
-                        self.embedder.dimension,
-                        v,
-                    ))
-
-            # 3. Process uncached media files (image, audio, video)
-            for i in range(len(unembedded_rows)):
-                if embeddings[i] is None:
-                    row = unembedded_rows[i]
+            # Check if any rows are media files
+            has_media = any(r["file_type"] in {"image", "audio", "video"} for r in unembedded_rows)
+            if not has_media:
+                # Fast path: all documents
+                embeddings = self.embedder.embed_documents(contents, titles=titles)
+                for meta in metadatas:
+                    meta["embedding_source"] = "text"
+            else:
+                # Multimodal dispatch: image, audio, video, or fallback to text
+                embeddings = []
+                for i, row in enumerate(unembedded_rows):
                     ftype = row["file_type"]
                     fpath = row["file_path"]
                     fname = row["filename"]
                     vec = None
-                    emb_source = "native_multimodal"
+                    emb_source = "text"
                     if ftype == "image":
                         try:
                             vec = self.embedder.embed_image(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Image embedding failed for %s, falling back to text: %s", fname, e)
                             emb_source = "metadata_fallback"
                     elif ftype == "audio":
                         try:
                             vec = self.embedder.embed_audio(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Audio embedding failed for %s, falling back to text: %s", fname, e)
                             emb_source = "metadata_fallback"
                     elif ftype == "video":
                         try:
                             vec = self.embedder.embed_video(fpath)
+                            emb_source = "native_multimodal"
                         except Exception as e:
                             logger.warning("Video embedding failed for %s, falling back to text: %s", fname, e)
                             emb_source = "metadata_fallback"
 
                     if vec is None:
-                        # Fallback to document text embedding
+                        # Fallback or standard document text embedding
                         title = titles[i]
                         content = contents[i]
                         doc_vecs = self.embedder.embed_documents([content], titles=[title])
                         vec = doc_vecs[0]
 
-                    embeddings[i] = vec
                     metadatas[i]["embedding_source"] = emb_source
-
-                    if emb_source == "native_multimodal":
-                        new_cache_records.append((
-                            cache_keys[i],
-                            content_shas[i],
-                            self.embedder.model_id,
-                            ftype,
-                            self.embedder.dimension,
-                            vec,
-                        ))
-
-            # Persist newly computed vectors to SQLite embedding cache
-            if new_cache_records:
-                with self.db.transaction() as conn:
-                    EmbeddingCacheRepository.put_batch(conn, new_cache_records)
-
-            if cache_hit_count > 0:
-                logger.info(
-                    "Embedding cache: %d hit(s), %d newly computed",
-                    cache_hit_count,
-                    len(unembedded_rows) - cache_hit_count,
-                )
+                    embeddings.append(vec)
 
             # Store in ChromaDB
             self.vector_store.upsert(

@@ -64,6 +64,7 @@ export interface UnifiedSearchResponse {
   keyword_available: boolean;
   semantic_available: boolean;
   rrf_k?: number | null;
+  fallback_reason?: string | null;
 }
 
 export interface FolderResponse {

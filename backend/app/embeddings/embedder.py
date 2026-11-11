@@ -3,6 +3,7 @@
 import logging
 from typing import List, Optional
 
+from app.core.dependencies import TorchDependencyManager, NativeDependencyError
 from app.embeddings.base import BaseEmbedder
 from app.embeddings.configuration import EmbeddingConfig
 from app.embeddings.exceptions import (
@@ -94,8 +95,6 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
             model = self.manager.get_sentence_transformer(self.config)
             with Image.open(path) as img:
                 img_rgb = img.convert("RGB")
-                if max(img_rgb.size) > 768:
-                    img_rgb.thumbnail((768, 768), Image.Resampling.LANCZOS)
                 embeddings = model.encode({"image": [img_rgb]}, normalize_embeddings=True)
                 return self._to_normalized_vector(embeddings)
         except Exception as e:
@@ -140,8 +139,8 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
             return []
 
         try:
-            import torch
-        except ImportError as e:
+            torch = TorchDependencyManager.get_instance().ensure_torch()
+        except Exception as e:
             raise InferenceError(f"PyTorch is required for embedding inference: {e}") from e
 
         tokenizer, model = self.manager.get_model_and_tokenizer(self.config)

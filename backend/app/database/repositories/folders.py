@@ -88,6 +88,24 @@ class FolderRepository:
         ]
 
     @staticmethod
+    def list_active(conn: sqlite3.Connection) -> List[FolderRecord]:
+        """List all active (enabled=1) registered folders."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, path, enabled, created_at, updated_at FROM folders WHERE enabled = 1 ORDER BY id ASC;")
+        rows = cursor.fetchall()
+        cursor.close()
+        return [
+            FolderRecord(
+                id=r["id"],
+                path=r["path"],
+                enabled=bool(r["enabled"]),
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+            for r in rows
+        ]
+
+    @staticmethod
     def delete(conn: sqlite3.Connection, folder_id: int) -> bool:
         """Delete a folder record. Foreign-key CASCADE deletes associated files and chunks."""
         cursor = conn.cursor()

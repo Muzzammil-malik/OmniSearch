@@ -273,6 +273,10 @@ class HybridSearchResponse(BaseModel):
         default=60,
         description="RRF smoothing constant k used during ranking fusion.",
     )
+    fallback_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for search engine fallback or degradation (e.g. semantic engine unavailable).",
+    )
 
 
 class SearchModeEnum(str, Enum):

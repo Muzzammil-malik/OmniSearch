@@ -107,6 +107,9 @@ class HybridSearchEngine:
         semantic_results: List[SemanticSearchResultItem] = []
         kw_available = self.keyword_engine is not None
         sem_available = self.semantic_engine is not None
+        fallback_reason: Optional[str] = None
+        sem_error: Optional[str] = None
+        kw_error: Optional[str] = None
 
         def run_keyword() -> List[SearchResultItem]:
             if not self.keyword_engine:
@@ -136,19 +139,19 @@ class HybridSearchEngine:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 kw_future = executor.submit(self._safe_execute_kw, run_keyword)
                 sem_future = executor.submit(self._safe_execute_sem, run_semantic)
-                keyword_results, kw_ok = kw_future.result()
-                semantic_results, sem_ok = sem_future.result()
+                keyword_results, kw_ok, kw_error = kw_future.result()
+                semantic_results, sem_ok, sem_error = sem_future.result()
                 if not kw_ok:
                     kw_available = False
                 if not sem_ok:
                     sem_available = False
         else:
             if kw_available:
-                keyword_results, kw_ok = self._safe_execute_kw(run_keyword)
+                keyword_results, kw_ok, kw_error = self._safe_execute_kw(run_keyword)
                 if not kw_ok:
                     kw_available = False
             if sem_available:
-                semantic_results, sem_ok = self._safe_execute_sem(run_semantic)
+                semantic_results, sem_ok, sem_error = self._safe_execute_sem(run_semantic)
                 if not sem_ok:
                     sem_available = False
 
@@ -156,6 +159,7 @@ class HybridSearchEngine:
         if not kw_available and not sem_available:
             logger.error("Both keyword and semantic search engines are unavailable.")
             duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+            fallback_msg = f"both_unavailable: kw={kw_error}, sem={sem_error}"
             return HybridSearchResponse(
                 query=search_req.query,
                 total_results=0,
@@ -167,6 +171,7 @@ class HybridSearchEngine:
                 keyword_available=False,
                 semantic_available=False,
                 rrf_k=search_req.rrf_k,
+                fallback_reason=fallback_msg,
             )
 
         if kw_available and sem_available:
@@ -174,14 +179,18 @@ class HybridSearchEngine:
                 search_mode = "hybrid"
             elif keyword_results and not semantic_results:
                 search_mode = "keyword_only"
+                fallback_reason = None
             elif semantic_results and not keyword_results:
                 search_mode = "semantic_only"
+                fallback_reason = None
             else:
                 search_mode = "hybrid"
         elif kw_available and not sem_available:
             search_mode = "keyword_only"
+            fallback_reason = f"semantic_unavailable: {sem_error}" if sem_error else "semantic_engine_unavailable"
         else:
             search_mode = "semantic_only"
+            fallback_reason = f"keyword_unavailable: {kw_error}" if kw_error else "keyword_engine_unavailable"
 
         # 5. Fuse candidate rankings using Reciprocal Rank Fusion
         fused_candidates: List[FusedCandidate] = ReciprocalRankFusion.fuse(
@@ -261,20 +270,21 @@ class HybridSearchEngine:
             keyword_available=kw_available,
             semantic_available=sem_available,
             rrf_k=search_req.rrf_k,
+            fallback_reason=fallback_reason,
         )
 
-    def _safe_execute_kw(self, runner) -> tuple[List[SearchResultItem], bool]:
+    def _safe_execute_kw(self, runner) -> tuple[List[SearchResultItem], bool, Optional[str]]:
         """Safely execute keyword search runner with error capture."""
         try:
-            return runner(), True
+            return runner(), True, None
         except Exception as exc:
             logger.warning("Keyword search failed during hybrid query execution: %s", exc)
-            return [], False
+            return [], False, str(exc)
 
-    def _safe_execute_sem(self, runner) -> tuple[List[SemanticSearchResultItem], bool]:
+    def _safe_execute_sem(self, runner) -> tuple[List[SemanticSearchResultItem], bool, Optional[str]]:
         """Safely execute semantic search runner with error capture."""
         try:
-            return runner(), True
+            return runner(), True, None
         except Exception as exc:
             logger.warning("Semantic search failed during hybrid query execution: %s", exc)
-            return [], False
+            return [], False, str(exc)

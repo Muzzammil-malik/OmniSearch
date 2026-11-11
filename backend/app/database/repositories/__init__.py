@@ -1,6 +1,5 @@
 """Database repository implementations."""
 
-from app.database.repositories.cache import EmbeddingCacheRepository
 from app.database.repositories.chunks import ChunkRepository
 from app.database.repositories.embeddings import ChunkEmbeddingRepository
 from app.database.repositories.files import FileRepository
@@ -14,7 +13,6 @@ __all__ = [
     "FileRepository",
     "ChunkRepository",
     "ChunkEmbeddingRepository",
-    "EmbeddingCacheRepository",
     "FtsRepository",
     "JobRepository",
     "SettingRepository",
