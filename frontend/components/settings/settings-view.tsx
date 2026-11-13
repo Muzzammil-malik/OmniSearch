@@ -8,6 +8,7 @@ import {
   RotateCw,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react";
 import { systemApi } from "@/lib/api";
 import { SearchMode, SystemStatusResponse } from "@/lib/types";
@@ -33,6 +34,76 @@ export function SettingsView({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(true);
+
+  // Windows Explorer Context Menu integration state
+  const [isContextMenuEnabled, setIsContextMenuEnabled] = useState(false);
+  const [isUpdatingContextMenu, setIsUpdatingContextMenu] = useState(false);
+  const [contextMenuError, setContextMenuError] = useState<string | null>(null);
+  const [isDesktopWindows, setIsDesktopWindows] = useState(true);
+
+  useEffect(() => {
+    // Check actual registration state from Electron desktop bridge or backend API
+    const checkStatus = async () => {
+      // 1. Check via Electron desktop bridge if running in desktop app
+      if (typeof window !== "undefined" && window.omnisearch) {
+        setIsDesktopWindows(window.omnisearch.platform === "win32");
+        if (window.omnisearch.isContextMenuRegistered) {
+          try {
+            const registered = await window.omnisearch.isContextMenuRegistered();
+            setIsContextMenuEnabled(registered);
+            localStorage.setItem("omnisearch-explorer-context-menu", String(registered));
+            return;
+          } catch {
+            // Fall back to backend check
+          }
+        }
+      }
+
+      // 2. Check via backend system API (supports local development in browser)
+      try {
+        const res = await systemApi.getContextMenuStatus();
+        setIsContextMenuEnabled(res.enabled);
+        localStorage.setItem("omnisearch-explorer-context-menu", String(res.enabled));
+        return;
+      } catch {
+        // Fall back to stored preference
+      }
+
+      const saved = localStorage.getItem("omnisearch-explorer-context-menu") === "true";
+      setIsContextMenuEnabled(saved);
+    };
+
+    checkStatus();
+  }, []);
+
+  const handleToggleContextMenu = async () => {
+    if (isUpdatingContextMenu) return;
+    const targetState = !isContextMenuEnabled;
+    setIsUpdatingContextMenu(true);
+    setContextMenuError(null);
+
+    try {
+      if (typeof window !== "undefined" && window.omnisearch?.setContextMenu) {
+        const res = await window.omnisearch.setContextMenu(targetState);
+        if (!res.success) {
+          setContextMenuError(res.error || "Failed to update Windows context menu");
+          return;
+        }
+      } else {
+        const res = await systemApi.setContextMenu(targetState);
+        if (!res.success) {
+          setContextMenuError(res.error || "Failed to update Windows context menu");
+          return;
+        }
+      }
+      setIsContextMenuEnabled(targetState);
+      localStorage.setItem("omnisearch-explorer-context-menu", String(targetState));
+    } catch (err) {
+      setContextMenuError(err instanceof Error ? err.message : "Failed to update context menu");
+    } finally {
+      setIsUpdatingContextMenu(false);
+    }
+  };
 
   const fetchStatus = async () => {
     setIsLoading(true);
@@ -198,7 +269,72 @@ export function SettingsView({
       </div>
 
       {/* ==================================================================== */}
-      {/* SECTION 2: SYSTEM HEALTH & DIAGNOSTICS                                */}
+      {/* SECTION 2: WINDOWS INTEGRATION                                        */}
+      {/* ==================================================================== */}
+      <div className="space-y-6">
+        <h2 className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB]">
+          Windows Integration
+        </h2>
+
+        <div className="rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/55 border border-[#9BA8AB] dark:border-[#253745] divide-y divide-[#9BA8AB] dark:divide-[#253745]">
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="max-w-xl">
+              <h3 className="text-base font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                Show OmniSearch in Explorer&apos;s context menu
+              </h3>
+              <p className="text-xs text-[#253745] dark:text-[#9BA8AB] mt-0.5">
+                Add &ldquo;Search with OmniSearch&rdquo; to the Windows Explorer folder context menu.
+              </p>
+              <p className="text-[11px] text-[#4A5C6A] dark:text-[#9BA8AB] mt-1.5 leading-relaxed">
+                Note: On Windows 11, shell entries appear under &ldquo;Show more options&rdquo; (or press Shift + Right-Click on any folder).
+              </p>
+              {contextMenuError && (
+                <p className="text-xs text-[#9b2226] dark:text-[#f2b8b5] font-mono mt-2">
+                  {contextMenuError}
+                </p>
+              )}
+              {!isDesktopWindows && (
+                <p className="text-[11px] text-[#4A5C6A] dark:text-[#9BA8AB] font-mono mt-2">
+                  Available in the OmniSearch Windows desktop application.
+                </p>
+              )}
+            </div>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3 self-start sm:self-center">
+              {isUpdatingContextMenu && (
+                <Loader2 className="w-4 h-4 animate-spin text-[#4A5C6A] dark:text-[#9BA8AB]" />
+              )}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isContextMenuEnabled}
+                aria-label="Show OmniSearch in Explorer's context menu"
+                disabled={isUpdatingContextMenu}
+                onClick={handleToggleContextMenu}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#06141B] dark:focus-visible:ring-[#CCD0CF]",
+                  isContextMenuEnabled
+                    ? "bg-[#06141B] dark:bg-[#CCD0CF]"
+                    : "bg-[#9BA8AB]/60 dark:bg-[#253745]",
+                  isUpdatingContextMenu ? "opacity-60 cursor-wait" : ""
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white dark:bg-[#06141B] shadow-lg ring-0 transition duration-200 ease-in-out transform",
+                    isContextMenuEnabled ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* SECTION 3: SYSTEM HEALTH & DIAGNOSTICS                                */}
       {/* ==================================================================== */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">

@@ -129,10 +129,11 @@ class KeywordSearchEngine:
                 clauses.append(f"f.file_type IN ({placeholders})")
                 params.extend(clean_types)
 
-        if filter_spec.folder_ids:
-            placeholders = ", ".join("?" for _ in filter_spec.folder_ids)
+        effective_folder_ids = filter_spec.get_effective_folder_ids() if hasattr(filter_spec, "get_effective_folder_ids") else filter_spec.folder_ids
+        if effective_folder_ids:
+            placeholders = ", ".join("?" for _ in effective_folder_ids)
             clauses.append(f"f.folder_id IN ({placeholders})")
-            params.extend(filter_spec.folder_ids)
+            params.extend(effective_folder_ids)
 
         if filter_spec.folder_paths:
             placeholders = ", ".join("?" for _ in filter_spec.folder_paths)

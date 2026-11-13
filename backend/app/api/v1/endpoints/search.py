@@ -103,17 +103,22 @@ async def search_get(
     limit: int = Query(default=20, ge=1, le=100, description="Max results to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     file_type: Optional[List[str]] = Query(default=None, description="Optional file type filter(s)"),
+    library_folder_id: Optional[int] = Query(default=None, description="Optional library folder ID to scope search"),
+    folder_id: Optional[int] = Query(default=None, description="Alias for library_folder_id"),
     max_chunks_per_file: int = Query(default=3, ge=1, le=50, description="Max chunks per file"),
     engine: KeywordSearchEngine = Depends(get_search_engine),
 ) -> SearchResponse:
     """Execute keyword search via GET query parameters."""
+    scoped_id = library_folder_id if library_folder_id is not None else folder_id
     filters = SearchFilter(
         file_types=file_type,
+        folder_ids=[scoped_id] if scoped_id is not None else None,
         max_chunks_per_file=max_chunks_per_file,
     )
     search_req = SearchQuery(
         query=q,
         filter=filters,
+        library_folder_id=scoped_id,
         limit=limit,
         offset=offset,
     )
@@ -148,17 +153,22 @@ async def semantic_search_get(
         default=-1.0, ge=-1.0, le=1.0, description="Minimum cosine similarity threshold"
     ),
     file_type: Optional[List[str]] = Query(default=None, description="Optional file type filter(s)"),
+    library_folder_id: Optional[int] = Query(default=None, description="Optional library folder ID to scope search"),
+    folder_id: Optional[int] = Query(default=None, description="Alias for library_folder_id"),
     max_chunks_per_file: int = Query(default=3, ge=1, le=50, description="Max chunks per file"),
     engine: SemanticSearchEngine = Depends(get_semantic_search_engine),
 ) -> SemanticSearchResponse:
     """Execute semantic vector search via GET query parameters."""
+    scoped_id = library_folder_id if library_folder_id is not None else folder_id
     filters = SearchFilter(
         file_types=file_type,
+        folder_ids=[scoped_id] if scoped_id is not None else None,
         max_chunks_per_file=max_chunks_per_file,
     )
     search_req = SemanticSearchQuery(
         query=q,
         filter=filters,
+        library_folder_id=scoped_id,
         limit=limit,
         offset=offset,
         min_similarity=min_similarity,
@@ -198,17 +208,22 @@ async def hybrid_search_get(
         default=-1.0, ge=-1.0, le=1.0, description="Minimum cosine similarity for semantic candidates"
     ),
     file_type: Optional[List[str]] = Query(default=None, description="Optional file type filter(s)"),
+    library_folder_id: Optional[int] = Query(default=None, description="Optional library folder ID to scope search"),
+    folder_id: Optional[int] = Query(default=None, description="Alias for library_folder_id"),
     max_chunks_per_file: int = Query(default=3, ge=1, le=50, description="Max chunks per file"),
     engine: HybridSearchEngine = Depends(get_hybrid_search_engine),
 ) -> HybridSearchResponse:
     """Execute hybrid search via GET query parameters."""
+    scoped_id = library_folder_id if library_folder_id is not None else folder_id
     filters = SearchFilter(
         file_types=file_type,
+        folder_ids=[scoped_id] if scoped_id is not None else None,
         max_chunks_per_file=max_chunks_per_file,
     )
     search_req = HybridSearchQuery(
         query=q,
         filter=filters,
+        library_folder_id=scoped_id,
         limit=limit,
         offset=offset,
         rrf_k=rrf_k,
@@ -247,18 +262,23 @@ async def unified_search_get(
     candidate_multiplier: int = Query(default=5, ge=1, le=20, description="Candidate multiplier"),
     min_similarity: float = Query(default=-1.0, ge=-1.0, le=1.0, description="Min similarity for semantic candidates"),
     file_type: Optional[List[str]] = Query(default=None, description="Optional file type filter(s)"),
+    library_folder_id: Optional[int] = Query(default=None, description="Optional library folder ID to scope search"),
+    folder_id: Optional[int] = Query(default=None, description="Alias for library_folder_id"),
     max_chunks_per_file: int = Query(default=3, ge=1, le=50, description="Max chunks per file"),
     service: SearchService = Depends(get_search_service),
 ) -> UnifiedSearchResponse:
     """Execute unified search via GET query parameters."""
+    scoped_id = library_folder_id if library_folder_id is not None else folder_id
     filters = SearchFilter(
         file_types=file_type,
+        folder_ids=[scoped_id] if scoped_id is not None else None,
         max_chunks_per_file=max_chunks_per_file,
     )
     req = UnifiedSearchQuery(
         query=q,
         mode=mode,
         filter=filters,
+        library_folder_id=scoped_id,
         limit=limit,
         offset=offset,
         rrf_k=rrf_k,

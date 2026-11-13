@@ -17,7 +17,31 @@ import {
   UnifiedSearchResponse,
 } from "./types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+/**
+ * Resolves the backend base URL dynamically.
+ * Priority:
+ * 1. Electron Desktop Bridge (window.omnisearch.getBackendUrl())
+ * 2. NEXT_PUBLIC_API_URL environment variable
+ * 3. Default local development backend at http://127.0.0.1:8000
+ */
+export function getBaseUrl(): string {
+  if (typeof window !== "undefined" && window.omnisearch && typeof window.omnisearch.getBackendUrl === "function") {
+    try {
+      const bridgeUrl = window.omnisearch.getBackendUrl();
+      if (bridgeUrl && typeof bridgeUrl === "string") {
+        return bridgeUrl.replace(/\/+$/, "");
+      }
+    } catch {
+      // Fallback if IPC fails
+    }
+  }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && typeof envUrl === "string") {
+    return envUrl.replace(/\/+$/, "");
+  }
+  return "http://127.0.0.1:8000";
+}
+
 const API_PREFIX = "/api/v1";
 
 export class ApiError extends Error {
@@ -37,7 +61,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${BASE_URL}${API_PREFIX}${endpoint}`;
+  const url = `${getBaseUrl()}${API_PREFIX}${endpoint}`;
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && options.body && typeof options.body === "string") {
     headers.set("Content-Type", "application/json");
@@ -181,6 +205,45 @@ export const systemApi = {
   pickFolderNative: async (signal?: AbortSignal): Promise<{ path: string | null; canceled: boolean; error?: string }> => {
     return request<{ path: string | null; canceled: boolean; error?: string }>("/system/pick-folder", {
       method: "POST",
+      signal,
+    });
+  },
+
+  getFileContentUrl: (filePath: string, fileId?: number | null): string => {
+    const params = new URLSearchParams();
+    if (fileId !== undefined && fileId !== null) {
+      params.set("file_id", String(fileId));
+    }
+    if (filePath) {
+      params.set("path", filePath);
+    }
+    return `${getBaseUrl()}${API_PREFIX}/system/file-content?${params.toString()}`;
+  },
+
+  openFile: async (filePath: string, signal?: AbortSignal): Promise<{ success: boolean; error?: string }> => {
+    return request<{ success: boolean; error?: string }>("/system/open-file", {
+      method: "POST",
+      body: JSON.stringify({ path: filePath }),
+      signal,
+    });
+  },
+
+  revealFile: async (filePath: string, signal?: AbortSignal): Promise<{ success: boolean; error?: string }> => {
+    return request<{ success: boolean; error?: string }>("/system/reveal-file", {
+      method: "POST",
+      body: JSON.stringify({ path: filePath }),
+      signal,
+    });
+  },
+
+  getContextMenuStatus: async (signal?: AbortSignal): Promise<{ enabled: boolean }> => {
+    return request<{ enabled: boolean }>("/system/context-menu", { signal });
+  },
+
+  setContextMenu: async (enabled: boolean, signal?: AbortSignal): Promise<{ success: boolean; error?: string }> => {
+    return request<{ success: boolean; error?: string }>("/system/context-menu", {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
       signal,
     });
   },

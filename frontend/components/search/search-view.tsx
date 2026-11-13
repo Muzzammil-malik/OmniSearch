@@ -10,6 +10,7 @@ import { Skeleton } from "../ui/skeleton";
 import { searchApi } from "@/lib/api";
 import {
   HybridSearchResultItem,
+  SearchFilter,
   SearchMode,
   UnifiedSearchResponse,
 } from "@/lib/types";
@@ -18,17 +19,37 @@ interface SearchViewProps {
   onOpenLibrary: () => void;
   defaultMode?: SearchMode;
   defaultLimit?: number;
+  initialFolderId?: number | null;
+  onSelectFolderId?: (folderId: number | null) => void;
 }
 
 export function SearchView({
   onOpenLibrary,
   defaultMode = "hybrid",
   defaultLimit = 20,
+  initialFolderId,
+  onSelectFolderId,
 }: SearchViewProps) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [mode, setMode] = useState<SearchMode>(defaultMode);
   const [selectedFileType, setSelectedFileType] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(
+    initialFolderId !== undefined ? initialFolderId : null
+  );
+
+  useEffect(() => {
+    if (initialFolderId !== undefined) {
+      setSelectedFolderId(initialFolderId);
+    }
+  }, [initialFolderId]);
+
+  const handleSelectFolderId = (folderId: number | null) => {
+    setSelectedFolderId(folderId);
+    if (onSelectFolderId) {
+      onSelectFolderId(folderId);
+    }
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +73,7 @@ export function SearchView({
     return () => clearTimeout(handler);
   }, [query]);
 
-  // Execute search when debouncedQuery, mode, or selectedFileType changes
+  // Execute search when debouncedQuery, mode, selectedFileType, or selectedFolderId changes
   const executeSearch = useCallback(
     async (searchQuery: string) => {
       if (!searchQuery) {
@@ -71,12 +92,21 @@ export function SearchView({
       setError(null);
 
       try {
+        const filterObj: SearchFilter = {};
+        if (selectedFileType) {
+          filterObj.file_types = [selectedFileType];
+        }
+        if (selectedFolderId !== null) {
+          filterObj.folder_ids = [selectedFolderId];
+        }
+
         const response = await searchApi.unifiedSearch(
           {
             query: searchQuery,
             mode,
             limit: defaultLimit,
-            filter: selectedFileType ? { file_types: [selectedFileType] } : null,
+            filter: Object.keys(filterObj).length > 0 ? filterObj : null,
+            library_folder_id: selectedFolderId,
           },
           abortControllerRef.current.signal
         );
@@ -99,7 +129,7 @@ export function SearchView({
         setIsLoading(false);
       }
     },
-    [mode, selectedFileType, defaultLimit]
+    [mode, selectedFileType, selectedFolderId, defaultLimit]
   );
 
   useEffect(() => {
@@ -164,6 +194,9 @@ export function SearchView({
             onModeChange={setMode}
             selectedFileType={selectedFileType}
             onSelectFileType={setSelectedFileType}
+            selectedFolderId={selectedFolderId}
+            onSelectFolderId={handleSelectFolderId}
+            onOpenLibrary={onOpenLibrary}
             isLoading={isLoading}
             onSearchSubmit={() => executeSearch(query.trim())}
             onClear={handleClear}

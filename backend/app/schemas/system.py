@@ -65,3 +65,37 @@ class NativeFolderPickerResponse(BaseModel):
     canceled: bool = Field(default=False, description="Whether the user canceled or dismissed the picker dialog")
     error: Optional[str] = Field(default=None, description="Error message if native dialog could not be invoked")
 
+
+class FileActionRequest(BaseModel):
+    """Request to perform an OS-level file operation."""
+
+    path: str = Field(..., min_length=1, description="Absolute file path on host system")
+
+
+class FileActionResponse(BaseModel):
+    """Result of an OS-level file operation."""
+
+    success: bool = Field(..., description="Whether action succeeded")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+
+
+class ContextMenuStatusResponse(BaseModel):
+    """Current registration state of Windows Explorer context menu."""
+
+    enabled: bool = Field(..., description="Whether context menu integration is registered")
+
+
+class ContextMenuToggleRequest(BaseModel):
+    """Request to enable or disable Windows Explorer context menu."""
+
+    enabled: bool = Field(..., description="Target registration state")
+
+
+class ContextMenuToggleResponse(BaseModel):
+    """Result of Windows Explorer context menu registration/unregistration."""
+
+    success: bool = Field(..., description="Whether operation succeeded")
+    error: Optional[str] = Field(default=None, description="Error message if operation failed")
+
+
+

@@ -16,11 +16,18 @@ import {
 import { formatBytes, formatNumber, formatRelativeTime } from "@/lib/utils";
 import { Button } from "../ui/button";
 
-interface IndexingViewProps {
-  onIndexingStateChange?: (isActive: boolean) => void;
+interface PendingFolderNotice {
+  folderPath: string;
+  folderId: number;
+  error?: string | null;
 }
 
-export function IndexingView({ onIndexingStateChange }: IndexingViewProps) {
+interface IndexingViewProps {
+  onIndexingStateChange?: (isActive: boolean) => void;
+  pendingFolderNotice?: PendingFolderNotice | null;
+}
+
+export function IndexingView({ onIndexingStateChange, pendingFolderNotice }: IndexingViewProps) {
   const [status, setStatus] = useState<IndexingStatusResponse | null>(null);
   const [stats, setStats] = useState<IndexingStatsResponse | null>(null);
   const [jobs, setJobs] = useState<IndexJobResponse[]>([]);
@@ -124,6 +131,27 @@ export function IndexingView({ onIndexingStateChange }: IndexingViewProps) {
           Refresh status
         </Button>
       </div>
+
+      {/* Context Menu Pending Folder Indexing Notice */}
+      {pendingFolderNotice && (
+        <div className="p-4 sm:p-5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-[#06141B] dark:text-[#CCD0CF] space-y-1.5 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <h2 className="text-sm font-semibold tracking-tight">Folder not indexed yet</h2>
+          </div>
+          <p className="text-xs text-[#253745] dark:text-[#9BA8AB] leading-relaxed">
+            OmniSearch needs to index this folder before it can search it. Indexing has started. Please wait until the process completes.
+          </p>
+          <div className="font-mono text-[11px] text-[#4A5C6A] dark:text-[#CCD0CF] truncate pt-0.5">
+            Target folder: {pendingFolderNotice.folderPath}
+          </div>
+          {pendingFolderNotice.error && (
+            <p className="text-xs text-[#9b2226] dark:text-[#f2b8b5] font-mono mt-1">
+              Error: {pendingFolderNotice.error}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Action Notification */}
       {actionMessage && (

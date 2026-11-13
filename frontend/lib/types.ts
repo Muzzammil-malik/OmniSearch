@@ -7,6 +7,8 @@ export type SearchMode = "hybrid" | "keyword" | "semantic";
 export interface SearchFilter {
   file_types?: string[];
   folder_ids?: number[];
+  folder_id?: number | null;
+  library_folder_id?: number | null;
   folder_paths?: string[];
   max_chunks_per_file?: number;
 }
@@ -15,6 +17,8 @@ export interface UnifiedSearchQuery {
   query: string;
   mode?: SearchMode;
   filter?: SearchFilter | null;
+  folder_id?: number | null;
+  library_folder_id?: number | null;
   limit?: number;
   offset?: number;
   rrf_k?: number;
@@ -210,8 +214,27 @@ export interface NativeFolderPickerResponse {
   error?: string;
 }
 
+export interface FileActionResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface AppInfo {
+  name: string;
+  version: string;
+  platform: string;
+}
+
 export interface OmnisearchDesktopBridge {
   selectFolder: () => Promise<string | null>;
+  openFile?: (filePath: string) => Promise<FileActionResult>;
+  revealFile?: (filePath: string) => Promise<FileActionResult>;
+  getBackendUrl?: () => string;
+  getAppInfo?: () => Promise<AppInfo>;
+  isContextMenuRegistered?: () => Promise<boolean>;
+  setContextMenu?: (enable: boolean) => Promise<{ success: boolean; error?: string }>;
+  getInitialFolderPath?: () => Promise<string | null>;
+  onOpenFolderPath?: (callback: (folderPath: string) => void) => () => void;
   platform?: string;
 }
 

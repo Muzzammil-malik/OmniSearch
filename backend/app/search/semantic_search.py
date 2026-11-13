@@ -125,10 +125,19 @@ class SemanticSearchEngine:
         results_list: List[SemanticSearchResultItem] = []
         chunks_per_file: Dict[int, int] = defaultdict(int)
         allowed_types: Optional[Set[str]] = None
-        if search_req.filter and search_req.filter.file_types:
-            norm_list = normalize_file_type_filters(search_req.filter.file_types)
-            if norm_list:
-                allowed_types = set(norm_list)
+        allowed_folder_ids: Optional[Set[int]] = None
+        if search_req.filter:
+            if search_req.filter.file_types:
+                norm_list = normalize_file_type_filters(search_req.filter.file_types)
+                if norm_list:
+                    allowed_types = set(norm_list)
+            eff_folders = (
+                search_req.filter.get_effective_folder_ids()
+                if hasattr(search_req.filter, "get_effective_folder_ids")
+                else search_req.filter.folder_ids
+            )
+            if eff_folders:
+                allowed_folder_ids = set(eff_folders)
 
         for match in filtered_matches:
             cid = match["chunk_id"]
@@ -137,6 +146,9 @@ class SemanticSearchEngine:
                 continue
 
             if allowed_types is not None and rec["file_type"] not in allowed_types:
+                continue
+
+            if allowed_folder_ids is not None and rec.get("folder_id") not in allowed_folder_ids:
                 continue
 
             file_id = rec["file_id"]
@@ -244,11 +256,12 @@ class SemanticSearchEngine:
                 elif len(clean_types) > 1:
                     conditions.append({"file_type": {"$in": clean_types}})
 
-        if filters.folder_ids:
-            if len(filters.folder_ids) == 1:
-                conditions.append({"folder_id": filters.folder_ids[0]})
-            elif len(filters.folder_ids) > 1:
-                conditions.append({"folder_id": {"$in": filters.folder_ids}})
+        effective_folder_ids = filters.get_effective_folder_ids() if hasattr(filters, "get_effective_folder_ids") else filters.folder_ids
+        if effective_folder_ids:
+            if len(effective_folder_ids) == 1:
+                conditions.append({"folder_id": effective_folder_ids[0]})
+            elif len(effective_folder_ids) > 1:
+                conditions.append({"folder_id": {"$in": effective_folder_ids}})
 
         if not conditions:
             return None

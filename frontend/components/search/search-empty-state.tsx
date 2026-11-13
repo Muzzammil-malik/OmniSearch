@@ -28,11 +28,12 @@ const FORMAT_LABELS: Record<string, string> = {
 };
 
 const SUGGESTED_QUERIES = [
-  "database normalization",
-  "discrete mathematics",
-  "project report",
-  "system architecture",
-  "financial forecast",
+  "machine learning notes",
+  "Python error solutions",
+  "project ideas for AI",
+  "photos from college events",
+  "videos of nature and landscapes",
+  "audio recordings of lectures",
 ];
 
 export function SearchEmptyState({
