@@ -2,15 +2,140 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #070b14;
-  --foreground: #f1f5f9;
+@layer base {
+  :root {
+    --bg-base: #CCD0CF;
+    --bg-surface: #D8DCDB;
+    --bg-surface-elevated: #E2E6E5;
+    --bg-surface-subtle: #BFC5C4;
+    --bg-dark-surface: #11212D;
+    --bg-dark-elevated: #253745;
+    --bg-border: #9BA8AB;
+    --bg-border-strong: #4A5C6A;
+    --text-primary: #06141B;
+    --text-secondary: #253745;
+    --text-muted: #4A5C6A;
+    --text-on-dark: #CCD0CF;
+    --accent: #06141B;
+    --accent-active: #11212D;
+
+    /* Theme-aware Floating Sidebar Tokens (Light Mode -> #06141b) */
+    --sidebar-background: #06141b;
+    --sidebar-border: #253745;
+    --sidebar-divider: rgba(155, 168, 171, 0.2);
+    --sidebar-text-primary: #CCD0CF;
+    --sidebar-text-muted: #9BA8AB;
+    --sidebar-hover-bg: rgba(204, 208, 207, 0.08);
+    --sidebar-active-bg: #1A2D3B;
+    --sidebar-active-border: rgba(155, 168, 171, 0.32);
+    --sidebar-active-text: #CCD0CF;
+    --sidebar-brand-bg: #11212D;
+    --sidebar-brand-border: rgba(155, 168, 171, 0.35);
+    --sidebar-brand-hover-bg: #253745;
+    --sidebar-ring: #9BA8AB;
+    --sidebar-status-healthy: #74c69d;
+    --sidebar-status-degraded: #fcd34d;
+    --sidebar-status-offline: #f2b8b5;
+  }
+
+  .dark {
+    --bg-base: #06141B;
+    --bg-surface: #11212D;
+    --bg-surface-elevated: #253745;
+    --bg-surface-subtle: #0B1A23;
+    --bg-dark-surface: #06141B;
+    --bg-dark-elevated: #253745;
+    --bg-border: #253745;
+    --bg-border-strong: #4A5C6A;
+    --text-primary: #CCD0CF;
+    --text-secondary: #9BA8AB;
+    --text-muted: #4A5C6A;
+    --text-on-dark: #CCD0CF;
+    --accent: #CCD0CF;
+    --accent-active: #9BA8AB;
+
+    /* Theme-aware Floating Sidebar Tokens (Dark Mode -> #E8ECEB base, #ffffff active) */
+    --sidebar-background: #E8ECEB;
+    --sidebar-border: #CCD0CF;
+    --sidebar-divider: rgba(74, 92, 106, 0.2);
+    --sidebar-text-primary: #06141b;
+    --sidebar-text-muted: #4A5C6A;
+    --sidebar-hover-bg: rgba(6, 20, 27, 0.06);
+    --sidebar-active-bg: #ffffff;
+    --sidebar-active-border: rgba(74, 92, 106, 0.28);
+    --sidebar-active-text: #06141b;
+    --sidebar-brand-bg: #ffffff;
+    --sidebar-brand-border: rgba(74, 92, 106, 0.32);
+    --sidebar-brand-hover-bg: #F5F7F7;
+    --sidebar-ring: #4A5C6A;
+    --sidebar-status-healthy: #2d6a4f;
+    --sidebar-status-degraded: #b5651d;
+    --sidebar-status-offline: #9b2226;
+  }
+
+  * {
+    border-color: var(--bg-border);
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Restrained scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(74, 92, 106, 0.4);
+    border-radius: 9999px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(74, 92, 106, 0.5);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(37, 55, 69, 0.7);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(155, 168, 171, 0.6);
+  }
+
+  /* Search term highlights using the slate-mineral palette */
+  mark {
+    background-color: rgba(74, 92, 106, 0.22);
+    color: #06141B;
+    font-weight: 500;
+    border-radius: 3px;
+    padding: 0.05em 0.25em;
+  }
+
+  .dark mark {
+    background-color: rgba(155, 168, 171, 0.22);
+    color: #CCD0CF;
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  min-height: 100vh;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-

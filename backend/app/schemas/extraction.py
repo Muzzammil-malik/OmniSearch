@@ -77,6 +77,11 @@ class ExtractedDocument(BaseModel):
         description="Detailed failure message when status is failed or partial",
     )
 
+    @property
+    def text(self) -> str:
+        """Concatenated content of all extracted segments."""
+        return "\n\n".join(s.content for s in self.segments if s.content)
+
 
 class ScannedFile(BaseModel):
     """Metadata for a discovered file during folder scanning."""

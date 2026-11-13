@@ -1,8 +1,9 @@
 """Production local embedder implementation using Google EmbeddingGemma 2."""
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
+from app.core.dependencies import TorchDependencyManager, NativeDependencyError
 from app.embeddings.base import BaseEmbedder
 from app.embeddings.configuration import EmbeddingConfig
 from app.embeddings.exceptions import (
@@ -64,24 +65,105 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
 
         return self._generate_embeddings(formatted_prompts)
 
+    def _to_normalized_vector(self, raw_embedding: Any) -> List[float]:
+        """Convert raw numpy or tensor model output to normalized 1D float list."""
+        import numpy as np
+        arr = np.asarray(raw_embedding, dtype=np.float32)
+        if arr.ndim == 2:
+            arr = arr[0]
+        elif arr.ndim > 2:
+            arr = arr.reshape(-1)
+
+        # MRL truncation
+        if self.config.dimension < arr.shape[0]:
+            arr = arr[: self.config.dimension]
+
+        norm = float(np.linalg.norm(arr))
+        if norm > 1e-9:
+            arr = arr / norm
+        return arr.tolist()
+
+    def embed_image(self, image_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for an image file."""
+        from pathlib import Path
+        from PIL import Image
+        path = Path(image_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Image file does not exist: {path}")
+
+        try:
+            model = self.manager.get_sentence_transformer(self.config)
+            with Image.open(path) as img:
+                img_rgb = img.convert("RGB")
+                embeddings = model.encode({"image": [img_rgb]}, normalize_embeddings=True)
+                return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Image embedding inference failed for {path.name}: {e}") from e
+
+    def embed_audio(self, audio_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for an audio file."""
+        from pathlib import Path
+        path = Path(audio_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Audio file does not exist: {path}")
+
+        try:
+            model = self.manager.get_sentence_transformer(self.config)
+            embeddings = model.encode({"audio": [str(path)]}, normalize_embeddings=True)
+            return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Audio embedding inference failed for {path.name}: {e}") from e
+
+    def embed_video(self, video_path: str) -> List[float]:
+        """Generate a 768-D normalized embedding vector for a video file."""
+        from pathlib import Path
+        from app.ingestion.extractors.video import sample_video_frames
+        path = Path(video_path).resolve()
+        if not path.is_file():
+            raise InferenceError(f"Video file does not exist: {path}")
+
+        try:
+            frames = sample_video_frames(path, max_frames=16)
+            if not frames:
+                raise InferenceError(f"No decodable frames in video file: {path.name}")
+
+            model = self.manager.get_sentence_transformer(self.config)
+            embeddings = model.encode({"video": [frames]}, normalize_embeddings=True)
+            return self._to_normalized_vector(embeddings)
+        except Exception as e:
+            raise InferenceError(f"Video embedding inference failed for {path.name}: {e}") from e
+
     def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Batch-process formatted text prompts through the model and mean pool."""
+        """Batch-process formatted text prompts through the model and mean pool.
+
+        Uses dynamic longest padding and safe length-aware batching:
+        When multiple batches exist, texts are grouped by length so items in each batch
+        share similar sequence lengths, minimizing wasted padding compute while preserving
+        exact output vector ordering and mathematical equivalence.
+        """
         if not texts:
             return []
 
         try:
-            import torch
-        except ImportError as e:
+            torch = TorchDependencyManager.get_instance().ensure_torch()
+        except Exception as e:
             raise InferenceError(f"PyTorch is required for embedding inference: {e}") from e
 
         tokenizer, model = self.manager.get_model_and_tokenizer(self.config)
         device = torch.device(self.config.device)
         batch_size = self.config.batch_size
-        results: List[List[float]] = []
+        results: List[Optional[List[float]]] = [None] * len(texts)
+
+        # Safe length-aware batch grouping if multiple batches are present
+        if len(texts) > batch_size:
+            indexed_texts = sorted(enumerate(texts), key=lambda x: len(x[1]))
+        else:
+            indexed_texts = list(enumerate(texts))
 
         try:
-            for start_idx in range(0, len(texts), batch_size):
-                batch_texts = texts[start_idx : start_idx + batch_size]
+            for start_idx in range(0, len(indexed_texts), batch_size):
+                batch_slice = indexed_texts[start_idx : start_idx + batch_size]
+                batch_texts = [item[1] for item in batch_slice]
 
                 encoded = tokenizer(
                     batch_texts,
@@ -115,9 +197,11 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
                     # L2 Normalization
                     normalized = torch.nn.functional.normalize(pooled, p=2, dim=1)
                     batch_results = normalized.cpu().tolist()
-                    results.extend(batch_results)
 
-            return results
+                    for (orig_idx, _), emb in zip(batch_slice, batch_results):
+                        results[orig_idx] = emb
+
+            return results  # type: ignore[return-value]
         except Exception as e:
             if isinstance(e, DimensionMismatchError):
                 raise

@@ -6,7 +6,7 @@ from typing import List, Optional, Set, Tuple
 from app.database.connection import DatabaseConnectionManager
 from app.database.repositories.embeddings import ChunkEmbeddingRepository
 from app.embeddings.base import BaseEmbedder
-from app.vector_store.chroma import ChromaVectorStore
+from app.vector_store.chroma import ChromaVectorStore, VectorStoreUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,13 @@ class SemanticPipeline:
         embedder: BaseEmbedder,
         vector_store: ChromaVectorStore,
         batch_size: int = 16,
+        fetch_pool_size: Optional[int] = None,
     ) -> None:
         self.db = db
         self.embedder = embedder
         self.vector_store = vector_store
         self.batch_size = batch_size
+        self.fetch_pool_size = fetch_pool_size if fetch_pool_size is not None else 128
 
     def sync_embeddings(self, max_chunks: Optional[int] = None) -> int:
         """Fetch unembedded chunks from SQLite, generate embeddings, and persist to ChromaDB.
@@ -37,8 +39,22 @@ class SemanticPipeline:
         """
         total_embedded = 0
 
+        # Check if any unembedded chunks exist before attempting model or vector store access
+        with self.db.connection() as conn:
+            initial_rows = ChunkEmbeddingRepository.get_unembedded_chunks(conn, limit=1)
+        if not initial_rows:
+            return 0
+
+        # Unembedded chunks exist: ensure vector store is available
+        if hasattr(self.vector_store, "is_available") and not self.vector_store.is_available():
+            init_err = getattr(self.vector_store, "_init_error", None) or "ChromaDB is unavailable"
+            raise VectorStoreUnavailableError(
+                f"Vector store is unavailable for embedding persistence: {init_err}",
+                original_exception=getattr(self.vector_store, "_init_error", None),
+            )
+
         while True:
-            limit = self.batch_size
+            limit = self.fetch_pool_size
             if max_chunks is not None:
                 remaining = max_chunks - total_embedded
                 if remaining <= 0:
@@ -65,6 +81,7 @@ class SemanticPipeline:
                 ftype = row["file_type"]
                 folder_id = row["folder_id"]
                 c_index = row["chunk_index"]
+                fpath = row["file_path"]
 
                 chunk_ids.append(cid)
                 file_ids.append(fid)
@@ -74,6 +91,7 @@ class SemanticPipeline:
                     "file_id": fid,
                     "filename": fname,
                     "file_type": ftype,
+                    "content_type": ftype if ftype in {"image", "audio", "video"} else "document",
                     "folder_id": folder_id,
                     "chunk_index": c_index,
                     "page_number": row["page_number"],
@@ -81,10 +99,56 @@ class SemanticPipeline:
                     "sheet_name": row["sheet_name"],
                     "start_line": row["start_line"],
                     "end_line": row["end_line"],
+                    "path": fpath,
                 })
 
-            # Generate embeddings using embedder
-            embeddings = self.embedder.embed_documents(contents, titles=titles)
+            # Check if any rows are media files
+            has_media = any(r["file_type"] in {"image", "audio", "video"} for r in unembedded_rows)
+            if not has_media:
+                # Fast path: all documents
+                embeddings = self.embedder.embed_documents(contents, titles=titles)
+                for meta in metadatas:
+                    meta["embedding_source"] = "text"
+            else:
+                # Multimodal dispatch: image, audio, video, or fallback to text
+                embeddings = []
+                for i, row in enumerate(unembedded_rows):
+                    ftype = row["file_type"]
+                    fpath = row["file_path"]
+                    fname = row["filename"]
+                    vec = None
+                    emb_source = "text"
+                    if ftype == "image":
+                        try:
+                            vec = self.embedder.embed_image(fpath)
+                            emb_source = "native_multimodal"
+                        except Exception as e:
+                            logger.warning("Image embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
+                    elif ftype == "audio":
+                        try:
+                            vec = self.embedder.embed_audio(fpath)
+                            emb_source = "native_multimodal"
+                        except Exception as e:
+                            logger.warning("Audio embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
+                    elif ftype == "video":
+                        try:
+                            vec = self.embedder.embed_video(fpath)
+                            emb_source = "native_multimodal"
+                        except Exception as e:
+                            logger.warning("Video embedding failed for %s, falling back to text: %s", fname, e)
+                            emb_source = "metadata_fallback"
+
+                    if vec is None:
+                        # Fallback or standard document text embedding
+                        title = titles[i]
+                        content = contents[i]
+                        doc_vecs = self.embedder.embed_documents([content], titles=[title])
+                        vec = doc_vecs[0]
+
+                    metadatas[i]["embedding_source"] = emb_source
+                    embeddings.append(vec)
 
             # Store in ChromaDB
             self.vector_store.upsert(

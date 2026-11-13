@@ -12,6 +12,7 @@ from app.schemas.search import (
     SearchResponse,
     SearchResultItem,
 )
+from app.search.filter_utils import normalize_file_type_filters
 from app.search.query_parser import QueryParser
 from app.search.snippets import SnippetFormatter
 
@@ -122,15 +123,17 @@ class KeywordSearchEngine:
         params: List[Any] = []
 
         if filter_spec.file_types:
-            clean_types = [t.lower().lstrip(".") for t in filter_spec.file_types]
-            placeholders = ", ".join("?" for _ in clean_types)
-            clauses.append(f"f.file_type IN ({placeholders})")
-            params.extend(clean_types)
+            clean_types = normalize_file_type_filters(filter_spec.file_types)
+            if clean_types:
+                placeholders = ", ".join("?" for _ in clean_types)
+                clauses.append(f"f.file_type IN ({placeholders})")
+                params.extend(clean_types)
 
-        if filter_spec.folder_ids:
-            placeholders = ", ".join("?" for _ in filter_spec.folder_ids)
+        effective_folder_ids = filter_spec.get_effective_folder_ids() if hasattr(filter_spec, "get_effective_folder_ids") else filter_spec.folder_ids
+        if effective_folder_ids:
+            placeholders = ", ".join("?" for _ in effective_folder_ids)
             clauses.append(f"f.folder_id IN ({placeholders})")
-            params.extend(filter_spec.folder_ids)
+            params.extend(effective_folder_ids)
 
         if filter_spec.folder_paths:
             placeholders = ", ".join("?" for _ in filter_spec.folder_paths)
@@ -255,6 +258,17 @@ class KeywordSearchEngine:
                 except Exception:
                     chunk_meta = {}
 
+            file_meta = {}
+            if "file_meta" in row.keys() and row["file_meta"]:
+                try:
+                    file_meta = json.loads(row["file_meta"])
+                except Exception:
+                    file_meta = {}
+
+            ftype = row["file_type"]
+            content_type = ftype if ftype in {"image", "audio", "video"} else "document"
+            media_metadata = file_meta if content_type in {"image", "audio", "video"} else None
+
             # Failed re-indexing policy: mark stale if file status is not success
             is_stale = (row["file_status"] != "success")
 
@@ -263,7 +277,8 @@ class KeywordSearchEngine:
                 chunk_id=row["chunk_id"],
                 filename=row["filename"],
                 file_path=row["file_path"],
-                file_type=row["file_type"],
+                file_type=ftype,
+                content_type=content_type,
                 file_status=row["file_status"],
                 is_stale=is_stale,
                 chunk_index=row["chunk_index"],
@@ -279,6 +294,7 @@ class KeywordSearchEngine:
                 score=normalized_score,
                 bm25_rank=bm25_val,
                 metadata=chunk_meta,
+                media_metadata=media_metadata,
             )
             items.append(item)
 

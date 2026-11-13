@@ -14,6 +14,7 @@ from app.schemas.search import (
     SemanticSearchResponse,
     SemanticSearchResultItem,
 )
+from app.search.filter_utils import normalize_file_type_filters
 from app.search.snippets import SnippetFormatter
 from app.vector_store.chroma import ChromaVectorStore
 
@@ -123,11 +124,31 @@ class SemanticSearchEngine:
         # 6. Apply max_chunks_per_file consolidation and build result items
         results_list: List[SemanticSearchResultItem] = []
         chunks_per_file: Dict[int, int] = defaultdict(int)
+        allowed_types: Optional[Set[str]] = None
+        allowed_folder_ids: Optional[Set[int]] = None
+        if search_req.filter:
+            if search_req.filter.file_types:
+                norm_list = normalize_file_type_filters(search_req.filter.file_types)
+                if norm_list:
+                    allowed_types = set(norm_list)
+            eff_folders = (
+                search_req.filter.get_effective_folder_ids()
+                if hasattr(search_req.filter, "get_effective_folder_ids")
+                else search_req.filter.folder_ids
+            )
+            if eff_folders:
+                allowed_folder_ids = set(eff_folders)
 
         for match in filtered_matches:
             cid = match["chunk_id"]
             rec = sqlite_records.get(cid)
             if not rec:
+                continue
+
+            if allowed_types is not None and rec["file_type"] not in allowed_types:
+                continue
+
+            if allowed_folder_ids is not None and rec.get("folder_id") not in allowed_folder_ids:
                 continue
 
             file_id = rec["file_id"]
@@ -155,12 +176,29 @@ class SemanticSearchEngine:
                 except Exception:
                     pass
 
+            file_meta: Dict[str, Any] = {}
+            if rec.get("file_meta"):
+                try:
+                    file_meta = json.loads(rec["file_meta"])
+                except Exception:
+                    pass
+
+            ftype = rec["file_type"]
+            content_type = ftype if ftype in {"image", "audio", "video"} else "document"
+            media_metadata = file_meta if content_type in {"image", "audio", "video"} else None
+
+            chroma_meta = match.get("metadata", {}) or {}
+            emb_source = chroma_meta.get("embedding_source")
+            if not emb_source:
+                emb_source = "native_multimodal" if content_type in {"image", "audio", "video"} else "text"
+
             item = SemanticSearchResultItem(
                 file_id=file_id,
                 chunk_id=cid,
                 filename=rec["filename"],
                 file_path=rec["file_path"],
-                file_type=rec["file_type"],
+                file_type=ftype,
+                content_type=content_type,
                 file_status=rec["file_status"],
                 is_stale=is_stale,
                 chunk_index=rec["chunk_index"],
@@ -176,6 +214,8 @@ class SemanticSearchEngine:
                 start_line=rec.get("start_line"),
                 end_line=rec.get("end_line"),
                 metadata=custom_meta,
+                media_metadata=media_metadata,
+                embedding_source=emb_source,
             )
             results_list.append(item)
 
@@ -209,17 +249,19 @@ class SemanticSearchEngine:
         conditions: List[Dict[str, Any]] = []
 
         if filters.file_types:
-            clean_types = [t.lower().strip() for t in filters.file_types if t.strip()]
-            if len(clean_types) == 1:
-                conditions.append({"file_type": clean_types[0]})
-            elif len(clean_types) > 1:
-                conditions.append({"file_type": {"$in": clean_types}})
+            clean_types = normalize_file_type_filters(filters.file_types)
+            if clean_types:
+                if len(clean_types) == 1:
+                    conditions.append({"file_type": clean_types[0]})
+                elif len(clean_types) > 1:
+                    conditions.append({"file_type": {"$in": clean_types}})
 
-        if filters.folder_ids:
-            if len(filters.folder_ids) == 1:
-                conditions.append({"folder_id": filters.folder_ids[0]})
-            elif len(filters.folder_ids) > 1:
-                conditions.append({"folder_id": {"$in": filters.folder_ids}})
+        effective_folder_ids = filters.get_effective_folder_ids() if hasattr(filters, "get_effective_folder_ids") else filters.folder_ids
+        if effective_folder_ids:
+            if len(effective_folder_ids) == 1:
+                conditions.append({"folder_id": effective_folder_ids[0]})
+            elif len(effective_folder_ids) > 1:
+                conditions.append({"folder_id": {"$in": effective_folder_ids}})
 
         if not conditions:
             return None
@@ -236,7 +278,8 @@ class SemanticSearchEngine:
         query = f"""
         SELECT c.id AS chunk_id, c.file_id, c.chunk_index, c.content, c.metadata_json AS chunk_meta,
                c.page_number, c.slide_number, c.sheet_name, c.row_number, c.start_line, c.end_line,
-               f.filename, f.path AS file_path, f.file_type, f.status AS file_status, f.folder_id
+               f.filename, f.path AS file_path, f.file_type, f.status AS file_status, f.folder_id,
+               f.metadata_json AS file_meta
         FROM chunks c
         JOIN files f ON c.file_id = f.id
         WHERE c.id IN ({placeholders});

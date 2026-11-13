@@ -96,6 +96,10 @@ class Settings(BaseSettings):
         default=16,
         description="Batch size for generating document chunk embeddings on CPU",
     )
+    embedding_fetch_pool_size: int = Field(
+        default=128,
+        description="Number of candidate chunks fetched from SQLite per embedding sync cycle for length-aware coalesced batching",
+    )
     embedding_device: str = Field(
         default="cpu",
         description="Device for embedding model inference ('cpu' or 'cuda' if supported)",
@@ -104,6 +108,37 @@ class Settings(BaseSettings):
         default="float32",
         description="Floating-point precision for embedding inference ('float32' or 'bfloat16')",
     )
+
+    # OCR Configuration (Phase 9)
+    ocr_enabled: bool = Field(
+        default=True,
+        description="Enable local OCR fallback for scanned and image-only PDF documents",
+    )
+    ocr_tessdata_dir: Optional[Path] = Field(
+        default=None,
+        description="Custom directory containing tessdata language models (e.g. eng.traineddata)",
+    )
+
+    # File System Watcher & Incremental Indexing (Phase 9)
+    watcher_enabled: bool = Field(
+        default=True,
+        description="Enable automatic filesystem monitoring for registered active folders",
+    )
+    watcher_debounce_ms: int = Field(
+        default=800,
+        description="Debounce window in milliseconds for coalescing rapid filesystem events",
+    )
+
+    @property
+    def resolved_ocr_tessdata_dir(self) -> Path:
+        """Resolve directory containing Tesseract language data files."""
+        if self.ocr_tessdata_dir is not None:
+            return self.ocr_tessdata_dir
+        # Check repo workspace data directory first if present
+        repo_tessdata = Path(__file__).resolve().parent.parent.parent / "data" / "ocr" / "tessdata"
+        if repo_tessdata.exists() and (repo_tessdata / "eng.traineddata").exists():
+            return repo_tessdata
+        return self.data_dir / "ocr" / "tessdata"
 
     @property
     def resolved_db_path(self) -> Path:

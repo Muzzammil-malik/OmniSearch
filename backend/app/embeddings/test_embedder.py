@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+from pathlib import Path
 from typing import List, Optional
 from app.embeddings.base import BaseEmbedder
 from app.embeddings.prompts import format_document_prompt, format_query_prompt
@@ -52,19 +53,36 @@ class DeterministicTestEmbedder(BaseEmbedder):
             embeddings.append(self._generate_vector(formatted))
         return embeddings
 
+    def embed_image(self, image_path: str) -> List[float]:
+        p = Path(image_path)
+        tag = f"image {p.stem} {p.suffix.lower()}"
+        return self._generate_vector(tag)
+
+    def embed_audio(self, audio_path: str) -> List[float]:
+        p = Path(audio_path)
+        tag = f"audio {p.stem} {p.suffix.lower()}"
+        return self._generate_vector(tag)
+
+    def embed_video(self, video_path: str) -> List[float]:
+        p = Path(video_path)
+        tag = f"video {p.stem} {p.suffix.lower()}"
+        return self._generate_vector(tag)
+
     def _generate_vector(self, text: str) -> List[float]:
         """Generate a deterministic pseudo-semantic vector using word hash seeds and L2 normalization."""
-        words = text.lower().split()
+        import re
+        # Filter prompt boilerplate words so they don't introduce noise in test embeddings
+        boilerplate = {"task", "search", "result", "query", "document"}
+        words = [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in boilerplate]
         vector = [0.0] * self._dimension
 
         # Combine word hashes so semantically overlapping texts share vector components
         for word in words:
             seed = int(hashlib.sha256(word.encode("utf-8")).hexdigest(), 16)
             for d in range(self._dimension):
-                # Pseudo-random float in [-1, 1] derived from word hash and dimension index
                 h = (seed ^ (d * 0x9E3779B9)) & 0xFFFFFFFF
-                val = (h / 0xFFFFFFFF) * 2.0 - 1.0
-                vector[d] += val
+                if (h & 0x7) == 0:
+                    vector[d] += (h / 0xFFFFFFFF) + 0.5
 
         # If empty text or zero vector, generate constant non-zero seed
         norm_sq = sum(v * v for v in vector)

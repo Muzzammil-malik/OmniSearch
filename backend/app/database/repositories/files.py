@@ -122,6 +122,31 @@ class FileRepository:
         return [cls._row_to_record(r) for r in rows]
 
     @staticmethod
+    def update_path(
+        conn: sqlite3.Connection,
+        file_id: int,
+        new_path: str,
+        new_filename: str,
+        new_ext: str,
+        folder_id: int,
+    ) -> bool:
+        """Update file path, name, extension, and parent folder for moved/renamed file."""
+        norm_path = normalize_file_path(new_path)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE files
+            SET path = ?, filename = ?, extension = ?, folder_id = ?, indexed_at = ?
+            WHERE id = ?;
+            """,
+            (norm_path, new_filename, new_ext, folder_id, now_iso, file_id),
+        )
+        updated = cursor.rowcount > 0
+        cursor.close()
+        return updated
+
+    @staticmethod
     def delete(conn: sqlite3.Connection, file_id: int) -> bool:
         """Delete a file record. Foreign key CASCADE removes all corresponding chunks."""
         cursor = conn.cursor()
@@ -160,6 +185,33 @@ class FileRepository:
 
         cursor.close()
         return deleted_paths
+
+    @staticmethod
+    def count_total(conn: sqlite3.Connection) -> int:
+        """Count total tracked files."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM files;")
+        total = cursor.fetchone()[0]
+        cursor.close()
+        return total
+
+    @staticmethod
+    def count_by_status(conn: sqlite3.Connection) -> dict:
+        """Count files grouped by extraction status."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, COUNT(*) FROM files GROUP BY status;")
+        counts = {row[0]: row[1] for row in cursor.fetchall()}
+        cursor.close()
+        return counts
+
+    @staticmethod
+    def get_total_size_bytes(conn: sqlite3.Connection) -> int:
+        """Calculate total size of all tracked files in bytes."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM files;")
+        total_size = cursor.fetchone()[0]
+        cursor.close()
+        return total_size
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> FileRecord:

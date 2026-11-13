@@ -91,6 +91,27 @@ class JobRepository:
         cursor.close()
         return [cls._row_to_record(r) for r in rows]
 
+    @classmethod
+    def get_running_job(cls, conn: sqlite3.Connection) -> Optional[IndexJobRecord]:
+        """Fetch the currently running job if one exists."""
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM index_jobs WHERE status = ? ORDER BY id DESC LIMIT 1;",
+            (IndexJobStatus.RUNNING.value,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return cls._row_to_record(row) if row else None
+
+    @classmethod
+    def get_latest(cls, conn: sqlite3.Connection) -> Optional[IndexJobRecord]:
+        """Fetch the single most recent job record."""
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM index_jobs ORDER BY id DESC LIMIT 1;")
+        row = cursor.fetchone()
+        cursor.close()
+        return cls._row_to_record(row) if row else None
+
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> IndexJobRecord:
         return IndexJobRecord(

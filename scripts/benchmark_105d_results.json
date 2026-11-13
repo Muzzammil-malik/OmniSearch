@@ -1,0 +1,204 @@
+{
+  "hardware": {
+    "cpu": "Intel64 Family 6 Model 142 Stepping 12, GenuineIntel",
+    "logical_cpus": 8,
+    "pytorch_threads": 6,
+    "pytorch_version": "2.15.0+cpu",
+    "transformers_version": "5.22.1",
+    "chromadb_version": "1.5.9"
+  },
+  "token_statistics": {
+    "count": 2000.0,
+    "min": 15.0,
+    "p25": 292.0,
+    "median": 470.0,
+    "p75": 492.0,
+    "p90": 498.0,
+    "p95": 499.0,
+    "p99": 500.0,
+    "max": 556.0,
+    "mean": 385.315
+  },
+  "workload_2000": {
+    "pool16": {
+      "pool_size": 16,
+      "batch_size": 16,
+      "total_chunks": 2000,
+      "num_inference_batches": 125,
+      "fetch_cycles": 125,
+      "content_tokens": 701275,
+      "evaluated_tokens": 978752,
+      "padding_tokens": 277477,
+      "padding_overhead_pct": 28.350082554109722,
+      "avg_seq_len": 489.376,
+      "min_seq_len": 379,
+      "max_seq_len": 512
+    },
+    "pool128": {
+      "pool_size": 128,
+      "batch_size": 16,
+      "total_chunks": 2000,
+      "num_inference_batches": 125,
+      "fetch_cycles": 16,
+      "content_tokens": 701275,
+      "evaluated_tokens": 841808,
+      "padding_tokens": 140533,
+      "padding_overhead_pct": 16.694186797939672,
+      "avg_seq_len": 420.904,
+      "min_seq_len": 125,
+      "max_seq_len": 512
+    }
+  },
+  "model_cold_load_s": 13.518756499979645,
+  "run_A1": {
+    "label": "Run A1 (Pool 16 Baseline)",
+    "fetch_pool_size": 16,
+    "batch_size": 16,
+    "total_chunks": 256,
+    "warm_total_wall_s": 543.6546412000025,
+    "throughput_emb_per_s": 0.4708871783655414,
+    "timings_s": {
+      "sqlite_read": 0.11251410000841133,
+      "tokenization": 0.36090320005314425,
+      "model_forward": 541.1149172000005,
+      "post_processing": 0.177109499956714,
+      "chroma_upsert": 1.6714586000016425,
+      "sqlite_commit": 0.19800070000928827
+    },
+    "db_counters": {
+      "fetch_cycles": 16,
+      "model_forward_passes": 16,
+      "chroma_calls": 16,
+      "sqlite_transactions": 16
+    },
+    "token_counters": {
+      "content_tokens": 85278,
+      "evaluated_tokens": 124640,
+      "padding_tokens": 39362
+    },
+    "padding_overhead_pct": 31.58055198973042,
+    "avg_padded_seq_len": 486.875,
+    "min_padded_seq_len": 438,
+    "max_padded_seq_len": 512,
+    "steady_state_rss_mb": 3561.671875,
+    "peak_rss_mb": 4883.50390625,
+    "milestones": {
+      "64": {
+        "chunks": 64,
+        "elapsed_s": 147.00309529999504,
+        "throughput": 0.4353649824134156,
+        "model_forward_s": 146.17120710000745,
+        "avg_seq_len": 463.25,
+        "rss_mb": 4071.234375
+      },
+      "128": {
+        "chunks": 128,
+        "elapsed_s": 268.6669406000001,
+        "throughput": 0.4764263132417564,
+        "model_forward_s": 267.3127324000234,
+        "avg_seq_len": 476.0,
+        "rss_mb": 4100.51171875
+      },
+      "192": {
+        "chunks": 192,
+        "elapsed_s": 409.7090782999876,
+        "throughput": 0.4686252030261781,
+        "model_forward_s": 407.79095420002704,
+        "avg_seq_len": 485.8333333333333,
+        "rss_mb": 4093.03515625
+      },
+      "256": {
+        "chunks": 256,
+        "elapsed_s": 543.6544318000088,
+        "throughput": 0.4708873597376897,
+        "model_forward_s": 541.1149172000005,
+        "avg_seq_len": 486.875,
+        "rss_mb": 4124.61328125
+      }
+    }
+  },
+  "run_B1": {
+    "label": "Run B1 (Pool 128 Phase 10.5C)",
+    "fetch_pool_size": 128,
+    "batch_size": 16,
+    "total_chunks": 256,
+    "warm_total_wall_s": 433.08387740000035,
+    "throughput_emb_per_s": 0.5911095133277289,
+    "timings_s": {
+      "sqlite_read": 0.01627849999931641,
+      "tokenization": 0.2971616999420803,
+      "model_forward": 431.6263439000759,
+      "post_processing": 0.22532080000382848,
+      "chroma_upsert": 0.8660665999923367,
+      "sqlite_commit": 0.04272369996760972
+    },
+    "db_counters": {
+      "fetch_cycles": 2,
+      "model_forward_passes": 16,
+      "chroma_calls": 2,
+      "sqlite_transactions": 2
+    },
+    "token_counters": {
+      "content_tokens": 85278,
+      "evaluated_tokens": 99824,
+      "padding_tokens": 14546
+    },
+    "padding_overhead_pct": 14.57164609713095,
+    "avg_padded_seq_len": 389.9375,
+    "min_padded_seq_len": 129,
+    "max_padded_seq_len": 512,
+    "steady_state_rss_mb": 3678.65234375,
+    "peak_rss_mb": 4915.3125,
+    "milestones": {
+      "64": {
+        "chunks": 64,
+        "elapsed_s": 225.39170429998194,
+        "throughput": 0.2839501134204127,
+        "model_forward_s": 224.60979020004743,
+        "avg_seq_len": 389.125,
+        "rss_mb": 4136.26953125
+      },
+      "128": {
+        "chunks": 128,
+        "elapsed_s": 225.39186810000683,
+        "throughput": 0.5678998141281927,
+        "model_forward_s": 224.60979020004743,
+        "avg_seq_len": 389.125,
+        "rss_mb": 4136.26953125
+      },
+      "192": {
+        "chunks": 192,
+        "elapsed_s": 433.08365950000007,
+        "throughput": 0.44333235805217436,
+        "model_forward_s": 431.6263439000759,
+        "avg_seq_len": 389.9375,
+        "rss_mb": 4118.45703125
+      },
+      "256": {
+        "chunks": 256,
+        "elapsed_s": 433.0838209000067,
+        "throughput": 0.59110959044371,
+        "model_forward_s": 431.6263439000759,
+        "avg_seq_len": 389.9375,
+        "rss_mb": 4118.45703125
+      }
+    }
+  },
+  "correctness": {
+    "total_chunks_verified": 256,
+    "max_absolute_difference": 1.4901161193847656e-07,
+    "average_absolute_difference": 1.627235431711266e-08,
+    "dimension": 768,
+    "numerical_equivalence_pass": true
+  },
+  "performance": {
+    "pool16_warm_time_s": 543.6546412000025,
+    "pool128_warm_time_s": 433.08387740000035,
+    "pool16_throughput": 0.4708871783655414,
+    "pool128_throughput": 0.5911095133277289,
+    "throughput_improvement_pct": 25.531027491443183,
+    "wall_clock_reduction_pct": 20.33841991230694,
+    "projected_2000_time_pool16_min": 70.78836473958366,
+    "projected_2000_time_pool128_min": 56.39112986979171
+  }
+}

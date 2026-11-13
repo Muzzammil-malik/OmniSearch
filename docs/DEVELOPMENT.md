@@ -72,6 +72,10 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 Once running, verify backend operation:
 - **Health Check Endpoint:** `http://127.0.0.1:8000/api/v1/health`
+- **Folders Management (GET / POST / PATCH / DELETE):** `http://127.0.0.1:8000/api/v1/folders`
+- **Indexing Controls & Statistics (POST / GET):** `http://127.0.0.1:8000/api/v1/indexing`
+- **System Telemetry & Status (GET):** `http://127.0.0.1:8000/api/v1/system/status`
+- **Unified Search Endpoint (POST / GET):** `http://127.0.0.1:8000/api/v1/search/unified`
 - **Keyword Search Endpoint (POST / GET):** `http://127.0.0.1:8000/api/v1/search`
 - **Semantic Search Endpoint (POST / GET):** `http://127.0.0.1:8000/api/v1/search/semantic`
 - **Hybrid Search Endpoint (POST / GET):** `http://127.0.0.1:8000/api/v1/search/hybrid`
@@ -119,6 +123,11 @@ This tests:
 - **Semantic Search Engine (Phase 5):** Natural language vector retrieval, metadata hydration, duplicate consolidation per file, stale document flags.
 - **Reciprocal Rank Fusion (Phase 6):** RRF formula $1/(k + rank)$ scoring, deterministic 3-tier tie-breaking, candidate pool multiplier.
 - **Hybrid Search Engine (Phase 6):** Concurrent keyword and semantic candidate retrieval, degraded modes (`hybrid`, `keyword_only`, `semantic_only`, `unavailable`), endpoint validation.
+- **Folder Management & Metrics (Phase 7):** Folder registration, validation, aggregated stats (files, chunks, bytes), cascading deletion, reconciliation.
+- **Indexing Controls & Lifecycles (Phase 7):** Synchronous and background batch indexing, conflict prevention (409), status polling, job history.
+- **Unified Application Search (Phase 7):** Polymorphic search interface over keyword, semantic, and hybrid engines with query parameters and filters.
+- **System Telemetry & Offline Readiness (Phase 7):** Lightweight diagnostic endpoints without eager model loading into RAM.
+- **Consistent Error Handling (Phase 7):** Standardized JSON error response contracts, status code mappings, no raw traceback leakage.
 
 ### 4.2 Frontend Checks
 

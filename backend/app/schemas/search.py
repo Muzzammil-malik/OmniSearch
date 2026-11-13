@@ -1,7 +1,8 @@
 """Pydantic schemas for keyword search requests, filters, results, and responses."""
 
+from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SearchFilter(BaseModel):
@@ -15,6 +16,14 @@ class SearchFilter(BaseModel):
         default=None,
         description="Filter by indexed folder database IDs.",
     )
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="Filter by a single indexed folder database ID.",
+    )
+    library_folder_id: Optional[int] = Field(
+        default=None,
+        description="Alias for single library folder database ID.",
+    )
     folder_paths: Optional[List[str]] = Field(
         default=None,
         description="Filter by root folder file paths.",
@@ -26,14 +35,52 @@ class SearchFilter(BaseModel):
         description="Maximum matching chunks to return per file (prevents single-document dominance).",
     )
 
+    def get_effective_folder_ids(self) -> Optional[List[int]]:
+        """Return combined, deduplicated list of folder IDs from folder_ids, folder_id, and library_folder_id."""
+        ids: List[int] = []
+        if self.folder_ids:
+            ids.extend(self.folder_ids)
+        if self.folder_id is not None:
+            ids.append(self.folder_id)
+        if self.library_folder_id is not None:
+            ids.append(self.library_folder_id)
+        if not ids:
+            return None
+        return list(dict.fromkeys(ids))
+
 
 class SearchQuery(BaseModel):
     """Incoming keyword search query request."""
 
     query: str = Field(..., min_length=1, description="Raw keyword or phrase search query.")
     filter: Optional[SearchFilter] = Field(default=None, description="Optional search filters.")
+    library_folder_id: Optional[int] = Field(
+        default=None,
+        description="Optional library folder database ID for scoping searches.",
+    )
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="Alias for library_folder_id.",
+    )
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return.")
     offset: int = Field(default=0, ge=0, description="Offset for pagination.")
+
+    @model_validator(mode="after")
+    def sync_folder_scope(self) -> "SearchQuery":
+        fid = self.library_folder_id if self.library_folder_id is not None else self.folder_id
+        if fid is not None:
+            if self.filter is None:
+                self.filter = SearchFilter(folder_ids=[fid])
+            else:
+                effective = self.filter.get_effective_folder_ids() or []
+                if fid not in effective:
+                    effective.append(fid)
+                self.filter.folder_ids = effective
+        elif self.filter is not None:
+            effective = self.filter.get_effective_folder_ids()
+            if effective:
+                self.filter.folder_ids = effective
+        return self
 
 
 class SearchResultItem(BaseModel):
@@ -44,6 +91,10 @@ class SearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -65,6 +116,11 @@ class SearchResultItem(BaseModel):
     score: float = Field(..., description="Normalized positive relevance score (higher is better).")
     bm25_rank: float = Field(..., description="Raw SQLite FTS5 BM25 rank score (negative value; lower is better).")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
 
 class SearchResponse(BaseModel):
@@ -83,6 +139,14 @@ class SemanticSearchQuery(BaseModel):
 
     query: str = Field(..., min_length=1, description="Natural language semantic search query.")
     filter: Optional[SearchFilter] = Field(default=None, description="Optional search filters.")
+    library_folder_id: Optional[int] = Field(
+        default=None,
+        description="Optional library folder database ID for scoping searches.",
+    )
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="Alias for library_folder_id.",
+    )
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return.")
     offset: int = Field(default=0, ge=0, description="Offset for pagination.")
     min_similarity: float = Field(
@@ -91,6 +155,23 @@ class SemanticSearchQuery(BaseModel):
         le=1.0,
         description="Minimum cosine similarity threshold.",
     )
+
+    @model_validator(mode="after")
+    def sync_folder_scope(self) -> "SemanticSearchQuery":
+        fid = self.library_folder_id if self.library_folder_id is not None else self.folder_id
+        if fid is not None:
+            if self.filter is None:
+                self.filter = SearchFilter(folder_ids=[fid])
+            else:
+                effective = self.filter.get_effective_folder_ids() or []
+                if fid not in effective:
+                    effective.append(fid)
+                self.filter.folder_ids = effective
+        elif self.filter is not None:
+            effective = self.filter.get_effective_folder_ids()
+            if effective:
+                self.filter.folder_ids = effective
+        return self
 
 
 class SemanticSearchResultItem(BaseModel):
@@ -101,6 +182,10 @@ class SemanticSearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -119,6 +204,11 @@ class SemanticSearchResultItem(BaseModel):
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
 
 class SemanticSearchResponse(BaseModel):
@@ -138,6 +228,14 @@ class HybridSearchQuery(BaseModel):
 
     query: str = Field(..., min_length=1, description="Raw keyword or natural language query.")
     filter: Optional[SearchFilter] = Field(default=None, description="Optional search filters.")
+    library_folder_id: Optional[int] = Field(
+        default=None,
+        description="Optional library folder database ID for scoping searches.",
+    )
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="Alias for library_folder_id.",
+    )
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of unified results to return.")
     offset: int = Field(default=0, ge=0, description="Offset for pagination.")
     rrf_k: int = Field(
@@ -159,6 +257,23 @@ class HybridSearchQuery(BaseModel):
         description="Minimum cosine similarity threshold for semantic candidates.",
     )
 
+    @model_validator(mode="after")
+    def sync_folder_scope(self) -> "HybridSearchQuery":
+        fid = self.library_folder_id if self.library_folder_id is not None else self.folder_id
+        if fid is not None:
+            if self.filter is None:
+                self.filter = SearchFilter(folder_ids=[fid])
+            else:
+                effective = self.filter.get_effective_folder_ids() or []
+                if fid not in effective:
+                    effective.append(fid)
+                self.filter.folder_ids = effective
+        elif self.filter is not None:
+            effective = self.filter.get_effective_folder_ids()
+            if effective:
+                self.filter.folder_ids = effective
+        return self
+
 
 class HybridSearchResultItem(BaseModel):
     """Unified document chunk match fused from lexical and semantic search engines."""
@@ -168,6 +283,10 @@ class HybridSearchResultItem(BaseModel):
     filename: str
     file_path: str
     file_type: str
+    content_type: Optional[str] = Field(
+        default=None,
+        description="Top-level modality content type ('document', 'image', 'audio', 'video').",
+    )
     file_status: str
     is_stale: bool = Field(
         default=False,
@@ -187,6 +306,11 @@ class HybridSearchResultItem(BaseModel):
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom chunk metadata.")
+    media_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Media attributes (duration, resolution, etc.).")
+    embedding_source: Optional[str] = Field(
+        default=None,
+        description="Origin of embedding representation ('native_multimodal', 'metadata_fallback', or 'text').",
+    )
 
     # Reciprocal Rank Fusion & Underlying Metrics
     rrf_score: float = Field(..., description="Combined Reciprocal Rank Fusion score (primary sort).")
@@ -237,3 +361,75 @@ class HybridSearchResponse(BaseModel):
         default=60,
         description="RRF smoothing constant k used during ranking fusion.",
     )
+    fallback_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for search engine fallback or degradation (e.g. semantic engine unavailable).",
+    )
+
+
+class SearchModeEnum(str, Enum):
+    """User-selectable search strategy."""
+
+    HYBRID = "hybrid"
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
+
+
+class UnifiedSearchQuery(BaseModel):
+    """Unified application search request supporting hybrid, keyword, and semantic modes."""
+
+    query: str = Field(..., min_length=1, description="Search query string.")
+    mode: SearchModeEnum = Field(
+        default=SearchModeEnum.HYBRID,
+        description="Search execution mode: 'hybrid', 'keyword', or 'semantic'.",
+    )
+    filter: Optional[SearchFilter] = Field(default=None, description="Optional search filters.")
+    library_folder_id: Optional[int] = Field(
+        default=None,
+        description="Optional library folder database ID for scoping searches.",
+    )
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="Alias for library_folder_id.",
+    )
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return.")
+    offset: int = Field(default=0, ge=0, description="Offset for pagination.")
+    rrf_k: int = Field(default=60, ge=1, le=1000, description="RRF smoothing constant k (for hybrid mode).")
+    candidate_multiplier: int = Field(default=5, ge=1, le=20, description="Candidate multiplier (for hybrid mode).")
+    min_similarity: float = Field(default=-1.0, ge=-1.0, le=1.0, description="Min cosine similarity (for semantic mode).")
+
+    @model_validator(mode="after")
+    def sync_folder_scope(self) -> "UnifiedSearchQuery":
+        fid = self.library_folder_id if self.library_folder_id is not None else self.folder_id
+        if fid is not None:
+            if self.filter is None:
+                self.filter = SearchFilter(folder_ids=[fid])
+            else:
+                effective = self.filter.get_effective_folder_ids() or []
+                if fid not in effective:
+                    effective.append(fid)
+                self.filter.folder_ids = effective
+        elif self.filter is not None:
+            effective = self.filter.get_effective_folder_ids()
+            if effective:
+                self.filter.folder_ids = effective
+        return self
+
+
+class UnifiedSearchResponse(BaseModel):
+    """Unified search response model presenting standard results across all modes."""
+
+    query: str
+    requested_mode: SearchModeEnum
+    effective_mode: str = Field(
+        ...,
+        description="Effective execution mode: 'hybrid', 'keyword', 'semantic', 'keyword_only', 'semantic_only', 'unavailable'.",
+    )
+    total_results: int
+    results: List[HybridSearchResultItem]
+    limit: int
+    offset: int
+    execution_time_ms: float
+    keyword_available: bool = True
+    semantic_available: bool = True
+    rrf_k: Optional[int] = 60

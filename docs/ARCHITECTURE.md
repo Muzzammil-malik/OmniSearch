@@ -320,7 +320,79 @@ flowchart TD
 
 ---
 
-## 9. Architectural Decisions & Principles
+## 9. Application Service Layer & Unified API (Phase 7 Implemented)
+
+Phase 7 introduces clean application service boundaries designed to decouple backend core engines from API presentation and prepare for frontend consumption:
+
+```mermaid
+flowchart TD
+    Client["Client / Future Next.js UI"] --> Router["FastAPI Router (/api/v1)"]
+    
+    subgraph APILayer["API Endpoint Layer"]
+        FoldersEP["/folders (CRUD & Metrics)"]
+        IndexingEP["/indexing (Trigger, Status, Stats)"]
+        SearchEP["/search/unified (Multi-mode query)"]
+        SystemEP["/system/status (Telemetry & Readiness)"]
+    end
+    
+    Router --> FoldersEP
+    Router --> IndexingEP
+    Router --> SearchEP
+    Router --> SystemEP
+    
+    subgraph ServiceLayer["Application Service Layer"]
+        FolderSvc["FolderService\n(Path validation, metrics aggregation, cascade prune)"]
+        IndexingSvc["IndexingService\n(Concurrency guard, batch coordination, status polling)"]
+        SearchSvc["SearchService\n(Mode strategy delegation, unified result mapping)"]
+        SystemSvc["SystemService\n(Lazy model introspection, SQLite & Chroma telemetry)"]
+    end
+    
+    FoldersEP --> FolderSvc
+    IndexingEP --> IndexingSvc
+    SearchEP --> SearchSvc
+    SystemEP --> SystemSvc
+    
+    subgraph CoreEngines["Core Processing & Persistence (Phases 1–6)"]
+        DBStore[("SQLite Canonical DB")]
+        FTS5Engine["FTS5 Keyword BM25"]
+        ChromaStore[("ChromaDB Vector Store")]
+        ModelManager["EmbeddingModelManager (Lazy)"]
+    end
+    
+    FolderSvc --> DBStore
+    IndexingSvc --> DBStore
+    IndexingSvc --> ChromaStore
+    SearchSvc --> FTS5Engine
+    SearchSvc --> ChromaStore
+    SystemSvc --> DBStore
+    SystemSvc --> ChromaStore
+    SystemSvc -.-> ModelManager
+```
+
+### 9.1 Service Responsibilities
+1. **`FolderService` (`app/services/folder_service.py`):**
+   - Validates paths against the filesystem (rejects files and nonexistent directories with 400).
+   - Prevents duplicate registrations with 409 Conflict.
+   - Computes aggregated folder statistics (file count, total size bytes, indexed chunks, last indexed date) via correlated subqueries.
+   - Manages cascading unregistration and reconciles vector storage to delete orphaned vectors.
+2. **`IndexingService` (`app/services/indexer.py`):**
+   - Guards against overlapping runs with 409 Conflict (`INDEXING_IN_PROGRESS`).
+   - Supports targeted single-folder indexing, whole-workspace indexing, force reindexing, and asynchronous background execution.
+   - Provides status polling and job history endpoints for future frontend progress bars.
+3. **`SearchService` (`app/services/search_service.py`):**
+   - Unifies search access across `keyword`, `semantic`, and `hybrid` modes through `POST /api/v1/search/unified` and `GET /api/v1/search/unified`.
+   - Normalizes all match representations into `HybridSearchResultItem`, ensuring unified snippets, highlighted tags, location coordinates, and ranking metrics.
+4. **`SystemService` (`app/services/system_service.py`):**
+   - Telemetry endpoint exposing database health, vector counts, and model readiness.
+   - **Lazy Introspection:** Queries `EmbeddingModelManager.is_loaded` without triggering PyTorch model loading or consuming gigabytes of system RAM during status checks.
+5. **`Global Exception Handlers` (`app/main.py`):**
+   - Centralizes error serialization via `ErrorResponse` schema.
+   - Maps domain exceptions (`FolderNotFoundError`, `DuplicateFolderError`, `IndexingInProgressError`) to RFC-compliant HTTP status codes.
+   - Redacts sensitive stack traces in production 500 responses while preserving detailed diagnostic logs on the server.
+
+---
+
+## 10. Architectural Decisions & Principles
 
 1. **Local-First & Privacy-Preserving:** All raw document files, indices, and vector embeddings remain on the user's local disk. No external uploads or cloud-dependent APIs are required for keyword and local semantic discovery.
 2. **Decoupled API Architecture:** The FastAPI backend and Next.js frontend are strictly decoupled. This allows independent testing, headless operation, and straightforward embedding into Electron in later phases.

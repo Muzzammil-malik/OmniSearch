@@ -31,7 +31,6 @@ OmniSearch is a professional, local-first, AI-powered multifile search and perso
 - **Lucide React** — Minimalist UI iconography
 
 ### Architecture Roadmap (Future Phases)
-- **User Interface Integration:** Unified Search Workspace (Phase 7)
 - **Desktop Shell:** Electron (Phase 8)
 
 ---
@@ -47,13 +46,17 @@ OmniSearch/
 │   │   │   └── v1/
 │   │   │       ├── endpoints/
 │   │   │       │   ├── __init__.py
+│   │   │       │   ├── folders.py         # Folder registration & management endpoints (Phase 7)
 │   │   │       │   ├── health.py          # Health check route handler
-│   │   │       │   └── search.py          # Keyword, Semantic & Hybrid search API endpoints (Phases 4, 5, 6)
+│   │   │       │   ├── indexing.py        # Indexing lifecycle & status endpoints (Phase 7)
+│   │   │       │   ├── search.py          # Keyword, Semantic, Hybrid & Unified search endpoints (Phases 4–7)
+│   │   │       │   └── system.py          # System telemetry & diagnostics endpoints (Phase 7)
 │   │   │       ├── __init__.py
 │   │   │       └── router.py              # V1 API router aggregator
 │   │   ├── core/
 │   │   │   ├── __init__.py
 │   │   │   ├── config.py                  # Pydantic Settings & storage directory configs
+│   │   │   ├── exceptions.py              # Centralized domain exception hierarchy (Phase 7)
 │   │   │   └── logging.py                 # Centralized logging setup
 │   │   ├── database/                      # Canonical persistence layer (Phase 3 & 4)
 │   │   │   ├── repositories/
@@ -61,7 +64,7 @@ OmniSearch/
 │   │   │   │   ├── chunks.py              # Chunks repository
 │   │   │   │   ├── embeddings.py          # Chunk embedding tracking repository (Phase 5)
 │   │   │   │   ├── files.py               # Files repository & reconciliation
-│   │   │   │   ├── folders.py             # Folders repository
+│   │   │   │   ├── folders.py             # Folders repository & aggregated metrics (Phases 3 & 7)
 │   │   │   │   ├── fts.py                 # FTS5 index maintenance repository (Phase 4)
 │   │   │   │   ├── jobs.py                # Index jobs repository
 │   │   │   │   └── settings.py            # Key-value settings repository
@@ -104,10 +107,14 @@ OmniSearch/
 │   │   │   └── __init__.py
 │   │   ├── schemas/                       # Pydantic API & domain schemas
 │   │   │   ├── __init__.py
+│   │   │   ├── errors.py                  # Standardized error response schema (Phase 7)
 │   │   │   ├── extraction.py              # ExtractedDocument & ExtractedSegment schemas
+│   │   │   ├── folder.py                  # Folder CRUD & metric schemas (Phase 7)
 │   │   │   ├── health.py                  # HealthResponse schema
+│   │   │   ├── indexing.py                # Indexing control & statistics schemas (Phase 7)
 │   │   │   ├── processing.py              # DocumentChunk & DB entity schemas
-│   │   │   └── search.py                  # Keyword, Semantic & Hybrid search schemas (Phases 4, 5, 6)
+│   │   │   ├── search.py                  # Keyword, Semantic, Hybrid & Unified search schemas (Phases 4–7)
+│   │   │   └── system.py                  # System diagnostics & telemetry schemas (Phase 7)
 │   │   ├── search/                        # Search subsystems (Phases 4, 5, 6)
 │   │   │   ├── __init__.py
 │   │   │   ├── hybrid_search.py           # Unified hybrid search engine (Phase 6)
@@ -116,10 +123,13 @@ OmniSearch/
 │   │   │   ├── rrf.py                     # Reciprocal Rank Fusion algorithm & ranking (Phase 6)
 │   │   │   ├── semantic_search.py         # ChromaDB vector similarity search engine (Phase 5)
 │   │   │   └── snippets.py                # HTML snippet formatting & XSS-safe highlighter
-│   │   ├── services/                      # Application business logic
+│   │   ├── services/                      # Application business logic (Phase 7)
 │   │   │   ├── __init__.py
-│   │   │   ├── indexer.py                 # Persistent IndexingService
-│   │   │   └── semantic_pipeline.py       # Embedding generation & ChromaDB sync (Phase 5)
+│   │   │   ├── folder_service.py          # Folder management service (Phase 7)
+│   │   │   ├── indexer.py                 # Persistent IndexingService (Phases 3 & 7)
+│   │   │   ├── search_service.py          # Unified search application service (Phase 7)
+│   │   │   ├── semantic_pipeline.py       # Embedding generation & ChromaDB sync (Phase 5)
+│   │   │   └── system_service.py          # System status telemetry service (Phase 7)
 │   │   ├── vector_store/                  # Vector database abstraction (Phase 5)
 │   │   │   ├── __init__.py
 │   │   │   └── chroma.py                  # ChromaDB PersistentClient & cosine metric client
@@ -134,13 +144,16 @@ OmniSearch/
 │   │   ├── test_coordinator.py            # Coordinator batch & failure tests
 │   │   ├── test_database.py               # SQLite tables, cascades & transactions tests
 │   │   ├── test_embeddings.py             # Embedding config, prompts & embedder tests (Phase 5)
+│   │   ├── test_error_handling.py         # Error response contracts & security tests (Phase 7)
 │   │   ├── test_extractors.py             # Multi-format genuine extraction tests
 │   │   ├── test_file_detector.py          # Security & signature tests
+│   │   ├── test_folders_api.py            # Folder registration, cascade & metric tests (Phase 7)
 │   │   ├── test_fts.py                    # SQLite FTS5 triggers & synchronization tests
 │   │   ├── test_hashing.py                # Streaming SHA-256 tests
 │   │   ├── test_health.py                 # Health endpoint automated tests
 │   │   ├── test_hybrid_search.py          # Hybrid search engine & fusion API tests (Phase 6)
 │   │   ├── test_indexer.py                # Persistent indexing service tests
+│   │   ├── test_indexing_api.py           # Indexing control, conflict & status tests (Phase 7)
 │   │   ├── test_normalizer.py             # Unicode & formatting normalization tests
 │   │   ├── test_query_parser.py           # Query parsing & escaping tests
 │   │   ├── test_rrf.py                    # Reciprocal Rank Fusion unit tests (Phase 6)
@@ -148,6 +161,8 @@ OmniSearch/
 │   │   ├── test_search.py                 # FTS5 keyword search engine & API tests
 │   │   ├── test_semantic_pipeline.py      # Semantic chunk embedding & sync tests (Phase 5)
 │   │   ├── test_semantic_search.py        # ChromaDB semantic search engine & API tests (Phase 5)
+│   │   ├── test_system_api.py             # System telemetry & lazy model tests (Phase 7)
+│   │   ├── test_unified_search_api.py     # Multi-mode unified search API tests (Phase 7)
 │   │   └── test_vector_store.py           # Chroma persistent storage & query tests (Phase 5)
 │   ├── pyproject.toml                     # Backend project & dependency metadata
 │   └── .env.example                       # Environment variable template
@@ -220,6 +235,10 @@ OmniSearch/
 
 5. **Verify operation:**
    - Health check: `http://127.0.0.1:8000/api/v1/health`
+   - Unified search: `http://127.0.0.1:8000/api/v1/search/unified`
+   - Folders: `http://127.0.0.1:8000/api/v1/folders`
+   - Indexing: `http://127.0.0.1:8000/api/v1/indexing/status`
+   - System Diagnostics: `http://127.0.0.1:8000/api/v1/system/status`
    - API Docs: `http://127.0.0.1:8000/docs`
 
 ### 4.2 Frontend Setup & Execution
@@ -242,13 +261,13 @@ OmniSearch/
 
 ## 5. Running Automated Tests
 
-Run the backend test suite using `pytest`:
+Run the full backend test suite using `pytest`:
 
 ```powershell
 .\backend\.venv\Scripts\pytest backend\tests -v
 ```
 
-All tests verify that the health endpoint returns structured, type-safe data matching the `HealthResponse` schema.
+160 automated tests covering ingestion, normalization, chunking, hashing, database cascades, FTS5 BM25 search, EmbeddingGemma 2 local inference, ChromaDB vectors, RRF hybrid fusion, folder management, indexing control, unified search, system telemetry, and consistent error handling.
 
 ---
 
@@ -266,4 +285,3 @@ For deeper architectural details, refer to [ARCHITECTURE.md](docs/ARCHITECTURE.m
 ## 7. License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-

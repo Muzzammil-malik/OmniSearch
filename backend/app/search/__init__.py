@@ -1,5 +1,6 @@
 """OmniSearch search module providing FTS5 keyword, ChromaDB semantic, and RRF hybrid search."""
 
+from app.search.filter_utils import normalize_file_type_filters
 from app.search.hybrid_search import HybridSearchEngine
 from app.search.keyword_search import KeywordSearchEngine
 from app.search.query_parser import ParsedQuery, QueryParser
@@ -16,4 +17,5 @@ __all__ = [
     "QueryParser",
     "ParsedQuery",
     "SnippetFormatter",
+    "normalize_file_type_filters",
 ]

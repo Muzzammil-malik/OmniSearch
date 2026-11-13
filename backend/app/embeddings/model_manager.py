@@ -5,6 +5,7 @@ import logging
 import threading
 from typing import Optional, Tuple, Any
 
+from app.core.dependencies import TorchDependencyManager, NativeDependencyError
 from app.embeddings.configuration import EmbeddingConfig
 from app.embeddings.exceptions import ModelLoadError, ModelNotFoundError
 
@@ -20,6 +21,8 @@ class EmbeddingModelManager:
     def __init__(self) -> None:
         self._tokenizer: Optional[Any] = None
         self._model: Optional[Any] = None
+        self._st_model: Optional[Any] = None
+        self._st_model_id: Optional[str] = None
         self._loaded_model_id: Optional[str] = None
         self._loaded_device: Optional[str] = None
         self._op_lock = threading.Lock()
@@ -35,7 +38,48 @@ class EmbeddingModelManager:
     @property
     def is_loaded(self) -> bool:
         """Check if model and tokenizer are currently resident in memory."""
-        return self._model is not None and self._tokenizer is not None
+        return (self._model is not None and self._tokenizer is not None) or self._st_model is not None
+
+    def get_sentence_transformer(self, config: EmbeddingConfig) -> Any:
+        """Lazy-load and return a SentenceTransformer multimodal model instance."""
+        with self._op_lock:
+            if self._st_model is not None and self._st_model_id == config.model_id:
+                return self._st_model
+
+            try:
+                torch = TorchDependencyManager.get_instance().ensure_torch()
+                from sentence_transformers import SentenceTransformer
+            except NativeDependencyError as e:
+                raise ModelLoadError(f"PyTorch native dependency failed ({e.category}): {e.original_exception}") from e
+            except ImportError as e:
+                raise ModelLoadError(f"Required library sentence_transformers is not installed: {e}") from e
+
+            config.validate_dimension()
+            torch_dtype = torch.bfloat16 if config.precision == "bfloat16" else torch.float32
+            logger.info("Loading SentenceTransformer model %s (device=%s, dtype=%s)...", config.model_id, config.device, torch_dtype)
+            try:
+                st_model = SentenceTransformer(
+                    config.model_id,
+                    device=config.device,
+                    model_kwargs={"dtype": torch_dtype},
+                    local_files_only=getattr(config, "local_files_only", False),
+                    truncate_dim=config.dimension if config.dimension < 768 else None,
+                )
+                self._st_model = st_model
+                self._st_model_id = config.model_id
+                logger.info("Successfully loaded SentenceTransformer model %s.", config.model_id)
+                return self._st_model
+            except Exception as e:
+                err_msg = str(e).lower()
+                if (
+                    "not found" in err_msg
+                    or "repository" in err_msg
+                    or "cannot find" in err_msg
+                    or "couldn't find" in err_msg
+                    or "local_files_only" in err_msg
+                ):
+                    raise ModelNotFoundError(f"Embedding model not found for '{config.model_id}': {e}") from e
+                raise ModelLoadError(f"Failed loading SentenceTransformer model '{config.model_id}': {e}") from e
 
     def get_model_and_tokenizer(
         self, config: EmbeddingConfig
@@ -56,8 +100,10 @@ class EmbeddingModelManager:
 
             # Need to load or reload model
             try:
-                import torch
+                torch = TorchDependencyManager.get_instance().ensure_torch()
                 from transformers import AutoModel, AutoTokenizer
+            except NativeDependencyError as e:
+                raise ModelLoadError(f"PyTorch native dependency failed ({e.category}): {e.original_exception}") from e
             except ImportError as e:
                 raise ModelLoadError(
                     f"Required libraries (torch, transformers) are not installed: {e}"
@@ -128,10 +174,12 @@ class EmbeddingModelManager:
     def unload(self) -> None:
         """Unload model and tokenizer from memory and trigger garbage collection."""
         with self._op_lock:
-            if self._model is not None or self._tokenizer is not None:
+            if self._model is not None or self._tokenizer is not None or self._st_model is not None:
                 logger.info("Unloading embedding model from memory.")
                 self._model = None
                 self._tokenizer = None
+                self._st_model = None
+                self._st_model_id = None
                 self._loaded_model_id = None
                 self._loaded_device = None
                 gc.collect()

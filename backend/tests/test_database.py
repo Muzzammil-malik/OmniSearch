@@ -209,3 +209,29 @@ def test_schema_migrations_missing_name_retroactively_added(tmp_path: Path) -> N
         cur.close()
 
 
+def test_folder_repository_list_active(tmp_path: Path) -> None:
+    """Verify FolderRepository.list_active returns only enabled folders."""
+    db = init_db(db_path=tmp_path / "folders.db")
+
+    with db.transaction() as conn:
+        f1 = FolderRepository.get_or_create(conn, "/docs/active1")
+        f2 = FolderRepository.get_or_create(conn, "/docs/disabled")
+        f3 = FolderRepository.get_or_create(conn, "/docs/active2")
+
+        # Disable f2
+        cursor = conn.cursor()
+        cursor.execute("UPDATE folders SET enabled = 0 WHERE id = ?;", (f2.id,))
+        cursor.close()
+
+    with db.connection() as conn:
+        all_folders = FolderRepository.list_all(conn)
+        active_folders = FolderRepository.list_active(conn)
+
+    assert len(all_folders) == 3
+    assert len(active_folders) == 2
+    active_paths = {f.path for f in active_folders}
+    assert not any("disabled" in p for p in active_paths)
+    assert any("active1" in p for p in active_paths)
+    assert any("active2" in p for p in active_paths)
+
+

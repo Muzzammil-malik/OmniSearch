@@ -2,9 +2,30 @@
 
 import logging
 from pathlib import Path
+import threading
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from app.core.dependencies import ChromaDependencyManager, classify_native_error
+
 logger = logging.getLogger(__name__)
+
+
+class VectorStoreError(Exception):
+    """Base exception for vector store operations."""
+
+
+class VectorStoreUnavailableError(VectorStoreError):
+    """Raised when ChromaDB vector store or its native dependencies cannot initialize."""
+
+    def __init__(
+        self,
+        message: str,
+        category: str = "unavailable",
+        original_exception: Optional[Exception] = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.original_exception = original_exception
 
 
 def chunk_id_to_chroma_id(chunk_id: int) -> str:
@@ -31,45 +52,122 @@ class ChromaVectorStore:
         self.collection_name = collection_name
         self._client = None
         self._collection = None
+        self._init_error: Optional[Exception] = None
+        self._error_category: Optional[str] = None
+        self._is_available: Optional[bool] = None
+        self._op_lock = threading.RLock()
+
+    def is_available(self) -> bool:
+        """Check if vector store can be initialized and reached."""
+        if self._is_available is not None:
+            return self._is_available
+        try:
+            _ = self.client
+            return True
+        except Exception:
+            return False
+
+    def get_initialization_error(self) -> Optional[Exception]:
+        return self._init_error
+
+    def get_error_category(self) -> Optional[str]:
+        return self._error_category
 
     @property
     def client(self):
         """Lazy-initialize ChromaDB client."""
-        if self._client is None:
-            import chromadb
-            self.persist_dir.mkdir(parents=True, exist_ok=True)
-            self._client = chromadb.PersistentClient(path=str(self.persist_dir))
-        return self._client
+        with self._op_lock:
+            if self._is_available is False:
+                raise VectorStoreUnavailableError(
+                    f"ChromaDB vector store is unavailable ({self._error_category}): {self._init_error}",
+                    category=self._error_category or "unavailable",
+                    original_exception=self._init_error,
+                ) from self._init_error
+
+            if self._client is None:
+                try:
+                    chromadb = ChromaDependencyManager.get_instance().ensure_chromadb()
+                    self.persist_dir.mkdir(parents=True, exist_ok=True)
+                    self._client = chromadb.PersistentClient(path=str(self.persist_dir))
+                    self._is_available = True
+                except Exception as exc:
+                    self._is_available = False
+                    self._init_error = exc
+                    self._error_category = classify_native_error(exc)
+                    logger.error("Failed to initialize ChromaDB PersistentClient (%s): %s", self._error_category, exc)
+                    raise VectorStoreUnavailableError(
+                        f"ChromaDB vector store is unavailable ({self._error_category}): {exc}",
+                        category=self._error_category,
+                        original_exception=exc,
+                    ) from exc
+            return self._client
 
     @property
     def collection(self):
         """Lazy-initialize ChromaDB collection with cosine distance metric."""
-        if self._collection is None:
-            self._collection = self.client.get_or_create_collection(
-                name=self.collection_name,
-                metadata={"hnsw:space": "cosine"},
-            )
-        return self._collection
+        with self._op_lock:
+            if self._collection is None:
+                try:
+                    self._collection = self.client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"},
+                    )
+                except Exception as exc:
+                    self._is_available = False
+                    self._init_error = exc
+                    self._error_category = classify_native_error(exc)
+                    raise VectorStoreUnavailableError(
+                        f"ChromaDB collection access failed ({self._error_category}): {exc}",
+                        category=self._error_category,
+                        original_exception=exc,
+                    ) from exc
+            return self._collection
 
     def count(self) -> int:
-        """Return total number of vectors stored in the collection."""
+        """Return total number of vectors stored in the collection.
+
+        Raises:
+            VectorStoreUnavailableError: If ChromaDB cannot be initialized or accessed.
+        """
         try:
             return self.collection.count()
+        except VectorStoreUnavailableError:
+            raise
         except Exception as e:
+            self._is_available = False
+            self._init_error = e
+            self._error_category = classify_native_error(e)
             logger.error("Failed to get vector count: %s", e)
-            return 0
+            raise VectorStoreUnavailableError(
+                f"Failed to get vector count ({self._error_category}): {e}",
+                category=self._error_category,
+                original_exception=e,
+            ) from e
 
     def get_all_chunk_ids(self) -> Set[int]:
-        """Return all integer chunk IDs currently present in the vector store."""
+        """Return all integer chunk IDs currently present in the vector store.
+
+        Raises:
+            VectorStoreUnavailableError: If ChromaDB cannot be initialized or accessed.
+        """
         try:
             total = self.count()
             if total == 0:
                 return set()
             data = self.collection.get(include=[])
             return {chroma_id_to_chunk_id(cid) for cid in data.get("ids", [])}
+        except VectorStoreUnavailableError:
+            raise
         except Exception as e:
+            self._is_available = False
+            self._init_error = e
+            self._error_category = classify_native_error(e)
             logger.error("Failed to retrieve chunk IDs from Chroma: %s", e)
-            return set()
+            raise VectorStoreUnavailableError(
+                f"Failed to retrieve chunk IDs ({self._error_category}): {e}",
+                category=self._error_category,
+                original_exception=e,
+            ) from e
 
     def upsert(
         self,
