@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Search, X, Sparkles, SlidersHorizontal, Cpu, BookOpen } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { SearchMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,27 @@ const FILE_TYPE_OPTIONS = [
   { label: "Code", value: "code" },
   { label: "Markdown", value: "md" },
   { label: "Text", value: "text" },
+  { label: "Images", value: "image" },
+  { label: "Audio", value: "audio" },
+  { label: "Video", value: "video" },
+];
+
+const SEARCH_MODES: { value: SearchMode; label: string; description: string }[] = [
+  {
+    value: "hybrid",
+    label: "Hybrid",
+    description: "Combined lexical BM25 and vector similarity ranking",
+  },
+  {
+    value: "keyword",
+    label: "Keyword",
+    description: "Exact SQLite FTS5 lexical matching",
+  },
+  {
+    value: "semantic",
+    label: "Semantic",
+    description: "Conceptual vector similarity retrieval",
+  },
 ];
 
 export function SearchBar({
@@ -65,118 +86,126 @@ export function SearchBar({
   };
 
   return (
-    <div className="w-full space-y-3">
-      {/* Primary Input Container */}
-      <div className="relative flex items-center w-full rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-750 shadow-sm hover:border-slate-300 dark:hover:border-navy-700 focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20 transition-all">
-        {/* Left Search Icon or Loading Spinner */}
-        <div className="pl-4 pr-2 text-slate-400 dark:text-slate-500 flex items-center justify-center">
+    <div className="w-full space-y-3.5">
+      {/* Prominent Search Field Container */}
+      <div className="relative flex items-center w-full rounded-xl bg-[#E2E6E5] dark:bg-[#06141B] border border-[#9BA8AB] dark:border-[#253745] shadow-subtle hover:border-[#4A5C6A] dark:hover:border-[#4A5C6A] focus-within:border-[#06141B] dark:focus-within:border-[#9BA8AB] focus-within:ring-1 focus-within:ring-[#06141B]/20 dark:focus-within:ring-[#9BA8AB]/25 transition-all duration-150">
+        {/* Left Search Icon or Restrained Loading Spinner */}
+        <div className="pl-4 pr-3 text-[#4A5C6A] dark:text-[#9BA8AB] flex items-center justify-center shrink-0">
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+            <div
+              className="w-4 h-4 border-[1.75px] border-[#4A5C6A]/35 border-t-[#06141B] dark:border-t-[#CCD0CF] rounded-full animate-spin"
+              aria-label="Searching"
+            />
           ) : (
-            <Search className="w-5 h-5 stroke-[2]" />
+            <Search className="w-4 h-4 stroke-[1.75]" />
           )}
         </div>
 
-        {/* Input */}
+        {/* Search Input */}
         <input
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search by keywords, natural questions, or code snippets..."
-          className="flex-1 bg-transparent py-3.5 pr-2 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
+          aria-label="Search local files and documents"
+          placeholder="Search files, passages, spreadsheets, or source code..."
+          className="flex-1 bg-transparent py-3.5 pr-3 text-[15px] text-[#06141B] dark:text-[#CCD0CF] placeholder:text-[#4A5C6A] dark:placeholder:text-[#4A5C6A] focus:outline-none"
         />
 
-        {/* Right side controls: Clear + Mode Selector + Ctrl+K */}
-        <div className="flex items-center gap-2 pr-3">
+        {/* Right Controls: Clear + Keyboard Shortcut + Search Action Pill */}
+        <div className="flex items-center gap-2 pr-3 shrink-0">
           {query && (
             <button
+              type="button"
               onClick={onClear}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
-              title="Clear query (Esc)"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-full text-[#4A5C6A] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF] hover:bg-[#06141B]/[0.07] dark:hover:bg-[#253745] transition-colors"
+              title="Clear search (Esc)"
+              aria-label="Clear search query"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {/* Mode Pill Dropdown / Toggle */}
-          <div className="flex items-center bg-slate-100 dark:bg-navy-850 p-1 rounded-xl border border-slate-200 dark:border-navy-750 text-xs">
-            <button
-              onClick={() => onModeChange("hybrid")}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-all",
-                mode === "hybrid"
-                  ? "bg-white dark:bg-navy-750 text-cyan-600 dark:text-cyan-400 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-              )}
-              title="Hybrid: SQLite BM25 + EmbeddingGemma 2 RRF"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hybrid</span>
-            </button>
-
-            <button
-              onClick={() => onModeChange("keyword")}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-all",
-                mode === "keyword"
-                  ? "bg-white dark:bg-navy-750 text-cyan-600 dark:text-cyan-400 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-              )}
-              title="Keyword: SQLite FTS5 BM25 search"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Keyword</span>
-            </button>
-
-            <button
-              onClick={() => onModeChange("semantic")}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-all",
-                mode === "semantic"
-                  ? "bg-white dark:bg-navy-750 text-cyan-600 dark:text-cyan-400 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-              )}
-              title="Semantic: EmbeddingGemma 2 vector similarity"
-            >
-              <Cpu className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Semantic</span>
-            </button>
-          </div>
-
-          {/* Shortcut indicator */}
-          <span className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-navy-700">
+          <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono text-[#4A5C6A] dark:text-[#9BA8AB] bg-[#CCD0CF] dark:bg-[#11212D] border border-[#9BA8AB] dark:border-[#253745]">
             Ctrl K
-          </span>
+          </kbd>
+
+          {query.trim().length > 0 && onSearchSubmit && (
+            <button
+              type="button"
+              onClick={onSearchSubmit}
+              className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#06141B] text-[#CCD0CF] hover:bg-[#11212D] dark:bg-[#CCD0CF] dark:text-[#06141B] dark:hover:bg-[#9BA8AB] transition-colors"
+            >
+              Search
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filter Row */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-        <span className="text-slate-400 dark:text-slate-500 mr-1 flex items-center gap-1 select-none font-medium">
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Filter:
-        </span>
-        {FILE_TYPE_OPTIONS.map((item) => {
-          const isSelected = selectedFileType === item.value;
-          return (
-            <button
-              key={item.label}
-              onClick={() => onSelectFileType(item.value)}
-              className={cn(
-                "px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all border",
-                isSelected
-                  ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30"
-                  : "bg-white dark:bg-navy-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-navy-800 hover:border-slate-300 dark:hover:border-navy-700"
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+      {/* Search Mode Controls + Format Filters Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-0.5">
+        {/* Search Mode Controls (Pill Segmented Group) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs font-medium text-[#4A5C6A] dark:text-[#9BA8AB] select-none">
+            Mode
+          </span>
+          <div
+            role="group"
+            aria-label="Search retrieval mode"
+            className="inline-flex items-center bg-[#D8DCDB] dark:bg-[#06141B] p-0.5 rounded-full border border-[#9BA8AB] dark:border-[#253745]"
+          >
+            {SEARCH_MODES.map((m) => {
+              const isActive = mode === m.value;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => onModeChange(m.value)}
+                  title={m.description}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-medium transition-colors duration-150 whitespace-nowrap",
+                    isActive
+                      ? "bg-[#06141B] text-[#CCD0CF] dark:bg-[#CCD0CF] dark:text-[#06141B]"
+                      : "text-[#253745] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                  )}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Format Filters (Compact Pill Controls) */}
+        <div
+          role="group"
+          aria-label="Filter by file format"
+          className="flex items-center gap-1.5 overflow-x-auto py-0.5 text-xs"
+        >
+          <span className="text-[#4A5C6A] dark:text-[#9BA8AB] mr-1 select-none font-medium whitespace-nowrap">
+            Format
+          </span>
+          {FILE_TYPE_OPTIONS.map((item) => {
+            const isSelected = selectedFileType === item.value;
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => onSelectFileType(item.value)}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors duration-150 border",
+                  isSelected
+                    ? "bg-[#06141B] text-[#CCD0CF] border-[#06141B] dark:bg-[#CCD0CF] dark:text-[#06141B] dark:border-[#CCD0CF]"
+                    : "bg-transparent text-[#253745] dark:text-[#9BA8AB] border-[#9BA8AB] dark:border-[#253745] hover:border-[#4A5C6A] dark:hover:border-[#4A5C6A] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                )}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
-

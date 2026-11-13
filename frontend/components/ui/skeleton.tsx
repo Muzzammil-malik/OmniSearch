@@ -10,11 +10,10 @@ export function Skeleton({
   return (
     <div
       className={cn(
-        "animate-pulse rounded-md bg-slate-200/80 dark:bg-navy-800/80",
+        "animate-pulse rounded-lg bg-[#9BA8AB]/50 dark:bg-[#253745]/80",
         className
       )}
       {...props}
     />
   );
 }
-

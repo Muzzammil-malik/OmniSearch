@@ -204,3 +204,21 @@ export interface ApiErrorDetail {
   timestamp: string;
 }
 
+export interface NativeFolderPickerResponse {
+  path: string | null;
+  canceled: boolean;
+  error?: string;
+}
+
+export interface OmnisearchDesktopBridge {
+  selectFolder: () => Promise<string | null>;
+  platform?: string;
+}
+
+declare global {
+  interface Window {
+    omnisearch?: OmnisearchDesktopBridge;
+  }
+}
+
+

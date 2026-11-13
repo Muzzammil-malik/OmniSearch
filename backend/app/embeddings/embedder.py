@@ -1,7 +1,7 @@
 """Production local embedder implementation using Google EmbeddingGemma 2."""
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from app.core.dependencies import TorchDependencyManager, NativeDependencyError
 from app.embeddings.base import BaseEmbedder
@@ -134,7 +134,13 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
             raise InferenceError(f"Video embedding inference failed for {path.name}: {e}") from e
 
     def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Batch-process formatted text prompts through the model and mean pool."""
+        """Batch-process formatted text prompts through the model and mean pool.
+
+        Uses dynamic longest padding and safe length-aware batching:
+        When multiple batches exist, texts are grouped by length so items in each batch
+        share similar sequence lengths, minimizing wasted padding compute while preserving
+        exact output vector ordering and mathematical equivalence.
+        """
         if not texts:
             return []
 
@@ -146,11 +152,18 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
         tokenizer, model = self.manager.get_model_and_tokenizer(self.config)
         device = torch.device(self.config.device)
         batch_size = self.config.batch_size
-        results: List[List[float]] = []
+        results: List[Optional[List[float]]] = [None] * len(texts)
+
+        # Safe length-aware batch grouping if multiple batches are present
+        if len(texts) > batch_size:
+            indexed_texts = sorted(enumerate(texts), key=lambda x: len(x[1]))
+        else:
+            indexed_texts = list(enumerate(texts))
 
         try:
-            for start_idx in range(0, len(texts), batch_size):
-                batch_texts = texts[start_idx : start_idx + batch_size]
+            for start_idx in range(0, len(indexed_texts), batch_size):
+                batch_slice = indexed_texts[start_idx : start_idx + batch_size]
+                batch_texts = [item[1] for item in batch_slice]
 
                 encoded = tokenizer(
                     batch_texts,
@@ -184,9 +197,11 @@ class EmbeddingGemmaEmbedder(BaseEmbedder):
                     # L2 Normalization
                     normalized = torch.nn.functional.normalize(pooled, p=2, dim=1)
                     batch_results = normalized.cpu().tolist()
-                    results.extend(batch_results)
 
-            return results
+                    for (orig_idx, _), emb in zip(batch_slice, batch_results):
+                        results[orig_idx] = emb
+
+            return results  # type: ignore[return-value]
         except Exception as e:
             if isinstance(e, DimensionMismatchError):
                 raise

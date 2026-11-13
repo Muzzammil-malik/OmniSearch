@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { AlertTriangle, ChevronRight, Compass, HelpCircle, Sparkles } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { HybridSearchResultItem } from "@/lib/types";
 import { cn, getFileTypeBadge, sanitizeHighlightedSnippet } from "@/lib/utils";
 
@@ -26,17 +27,20 @@ export function SearchResults({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.tagName === "SELECT"
       ) {
         return;
       }
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        onSelectResult(Math.min(results.length - 1, selectedIndex + 1));
+        const nextIdx = Math.min(results.length - 1, selectedIndex + 1);
+        onSelectResult(nextIdx);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        onSelectResult(Math.max(0, selectedIndex - 1));
+        const prevIdx = Math.max(0, selectedIndex - 1);
+        onSelectResult(prevIdx);
       } else if (e.key === "Enter" && results[selectedIndex]) {
         e.preventDefault();
         onOpenPreview(results[selectedIndex]);
@@ -48,10 +52,10 @@ export function SearchResults({
   }, [results, selectedIndex, onSelectResult, onOpenPreview]);
 
   return (
-    <div ref={containerRef} className="space-y-2.5 pb-8">
+    <div ref={containerRef} className="space-y-3 pb-10">
       {results.map((item, index) => {
         const isSelected = selectedIndex === index;
-        const typeBadge = getFileTypeBadge(item.file_type);
+        const typeInfo = getFileTypeBadge(item.file_type);
         const isDiagnosticsOpen = expandedMatchId === item.chunk_id;
 
         // Clean document location pointer
@@ -60,155 +64,194 @@ export function SearchResults({
         else if (item.slide_number) locationText = `Slide ${item.slide_number}`;
         else if (item.sheet_name)
           locationText = item.row_number
-            ? `Sheet: ${item.sheet_name} · Row ${item.row_number}`
-            : `Sheet: ${item.sheet_name}`;
+            ? `Sheet ${item.sheet_name} · Row ${item.row_number}`
+            : `Sheet ${item.sheet_name}`;
         else if (item.start_line)
           locationText = item.end_line
-            ? `Lines ${item.start_line}-${item.end_line}`
+            ? `Lines ${item.start_line}–${item.end_line}`
             : `Line ${item.start_line}`;
         else if (item.media_metadata) {
           const m = item.media_metadata as Record<string, unknown>;
           if (m.duration_formatted) locationText = `Duration ${m.duration_formatted}`;
-          else if (m.width && m.height) locationText = `${m.width}x${m.height}`;
+          else if (m.width && m.height) locationText = `${m.width}×${m.height}`;
         }
 
+        const scoreDisplay =
+          item.rrf_score > 0
+            ? `${(item.rrf_score * 100).toFixed(1)}% relevance`
+            : item.semantic_score
+            ? `${(item.semantic_score * 100).toFixed(0)}% similarity`
+            : null;
+
         return (
-          <div
+          <motion.article
             key={`${item.chunk_id}-${index}`}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.18,
+              delay: Math.min(index * 0.025, 0.15),
+              ease: [0.16, 1, 0.3, 1],
+            }}
             onClick={() => {
               onSelectResult(index);
               onOpenPreview(item);
             }}
             className={cn(
-              "group relative p-4 rounded-2xl border transition-all duration-150 cursor-pointer text-left select-none",
+              "group relative p-5 rounded-xl border transition-colors duration-150 cursor-pointer text-left select-none",
               isSelected
-                ? "bg-white dark:bg-navy-900 border-cyan-500/80 shadow-md ring-1 ring-cyan-500/20"
-                : "bg-white/80 dark:bg-navy-900/60 border-slate-200 dark:border-navy-800 hover:border-slate-300 dark:hover:border-navy-700 hover:bg-white dark:hover:bg-navy-900"
+                ? "bg-[#E2E6E5] dark:bg-[#253745]/80 border-[#06141B] dark:border-[#9BA8AB] shadow-subtle"
+                : "bg-[#D8DCDB] dark:bg-[#06141B]/55 border-[#9BA8AB] dark:border-[#253745] hover:border-[#4A5C6A] dark:hover:border-[#4A5C6A] hover:bg-[#E2E6E5] dark:hover:bg-[#253745]/45"
             )}
           >
-            {/* Header: Primary File Name & Location */}
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                {/* File Type Badge */}
-                <span
-                  className={cn(
-                    "text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0",
-                    typeBadge.color
-                  )}
-                >
-                  {typeBadge.label}
-                </span>
+            {/* 1. Primary Header: Filename + Quiet Inline Metadata */}
+            <div className="flex items-baseline justify-between gap-4 mb-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2.5 flex-wrap">
+                  <h3 className="text-[15px] font-medium text-[#06141B] dark:text-[#CCD0CF] truncate group-hover:text-[#11212D] dark:group-hover:text-white transition-colors">
+                    {item.filename}
+                  </h3>
 
-                {/* 1. File Name */}
-                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                  {item.filename}
-                </h4>
-
-                {/* 2. Document Location Pointer */}
-                {locationText && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-navy-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-navy-750">
-                    <Compass className="w-3 h-3 text-cyan-500" />
-                    {locationText}
-                  </span>
-                )}
-
-                {/* Stale Warning Indicator */}
-                {item.is_stale && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    <AlertTriangle className="w-3 h-3" />
-                    Stale Index
-                  </span>
-                )}
+                  {/* Unboxed typographic metadata with subtle middot separators */}
+                  <div className="flex items-center gap-1.5 text-xs text-[#253745] dark:text-[#9BA8AB] font-mono tabular-nums">
+                    <span className="uppercase tracking-wider text-[11px]">
+                      {typeInfo.label}
+                    </span>
+                    {locationText && (
+                      <>
+                        <span aria-hidden="true" className="text-[#4A5C6A]">
+                          ·
+                        </span>
+                        <span className="font-sans text-[#253745] dark:text-[#9BA8AB]">
+                          {locationText}
+                        </span>
+                      </>
+                    )}
+                    {item.is_stale && (
+                      <>
+                        <span aria-hidden="true" className="text-[#4A5C6A]">
+                          ·
+                        </span>
+                        <span className="font-sans text-[#9c5214] dark:text-[#fcd34d]">
+                          Stale index
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Right chevron indicator */}
-              <div className="flex items-center gap-1 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 shrink-0">
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              {/* Right Relevance & Action Indicator */}
+              <div className="flex items-center gap-2 shrink-0">
+                {scoreDisplay && (
+                  <span className="hidden sm:inline text-[11px] font-mono tabular-nums text-[#4A5C6A] dark:text-[#9BA8AB]">
+                    {scoreDisplay}
+                  </span>
+                )}
+                <ChevronRight className="w-4 h-4 text-[#4A5C6A] dark:text-[#9BA8AB] group-hover:text-[#06141B] dark:group-hover:text-[#CCD0CF] group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
 
-            {/* 3. Relevant Highlighted Snippet */}
+            {/* 2. Matched Content Passage */}
             <div
-              className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 font-sans line-clamp-3 mb-2.5"
+              className="text-[13.5px] leading-relaxed text-[#253745] dark:text-[#9BA8AB] font-sans line-clamp-3 mb-3.5 max-w-3xl"
               dangerouslySetInnerHTML={{
                 __html: sanitizeHighlightedSnippet(item.snippet || item.content),
               }}
             />
 
-            {/* 4. Footer: File Path & Secondary "Why this matched?" info */}
-            <div className="flex items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-navy-850">
-              <span className="truncate font-mono" title={item.file_path}>
+            {/* 3. Secondary Footer: File Path & Pill Inspect Toggle */}
+            <div className="flex items-center justify-between gap-4 pt-2.5 border-t border-[#9BA8AB]/60 dark:border-[#253745] text-xs">
+              <span
+                className="truncate font-mono text-[11px] text-[#4A5C6A] dark:text-[#9BA8AB]"
+                title={item.file_path}
+              >
                 {item.file_path}
               </span>
 
-              {/* Subtle Match Info / Why this result? Toggle */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setExpandedMatchId(isDiagnosticsOpen ? null : item.chunk_id);
                 }}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors shrink-0"
-                title="Inspect ranking details"
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors shrink-0 border",
+                  isDiagnosticsOpen
+                    ? "bg-[#06141B] text-[#CCD0CF] border-[#06141B] dark:bg-[#CCD0CF] dark:text-[#06141B] dark:border-[#CCD0CF]"
+                    : "bg-transparent text-[#253745] dark:text-[#9BA8AB] border-[#9BA8AB] dark:border-[#4A5C6A] hover:border-[#06141B] dark:hover:border-[#CCD0CF] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                )}
               >
-                <HelpCircle className="w-3 h-3" />
-                <span>Why this matched?</span>
+                {isDiagnosticsOpen ? "Hide match details" : "Match details"}
               </button>
             </div>
 
-            {/* Secondary Ranking Diagnostics Pop-down (Power User) */}
+            {/* 4. Expandable Ranking Diagnostics */}
             {isDiagnosticsOpen && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-navy-950 border border-slate-200 dark:border-navy-800 text-xs space-y-2 animate-in fade-in zoom-in-95 duration-100"
+                className="mt-3 pt-3 border-t border-[#9BA8AB]/60 dark:border-[#253745] text-xs"
               >
-                <div className="flex items-center justify-between font-medium text-slate-700 dark:text-slate-200">
-                  <span className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Ranking Diagnostics
-                  </span>
-                  <span className="font-mono text-[10px] text-slate-400">
-                    Chunk #{item.chunk_index}
-                  </span>
-                </div>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono tabular-nums text-[11px] text-[#253745] dark:text-[#9BA8AB]">
+                  <div>
+                    <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                      Segment:
+                    </span>
+                    <span className="text-[#06141B] dark:text-[#CCD0CF]">
+                      Chunk #{item.chunk_index}
+                    </span>
+                  </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
                   {item.keyword_rank !== null && item.keyword_rank !== undefined && (
-                    <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Keyword Rank</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    <div>
+                      <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                        Keyword Rank:
+                      </span>
+                      <span className="text-[#06141B] dark:text-[#CCD0CF]">
                         #{item.keyword_rank}
                       </span>
                     </div>
                   )}
+
                   {item.semantic_rank !== null && item.semantic_rank !== undefined && (
-                    <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Semantic Rank</span>
-                      <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                    <div>
+                      <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                        Semantic Rank:
+                      </span>
+                      <span className="text-[#06141B] dark:text-[#CCD0CF]">
                         #{item.semantic_rank}
                       </span>
                     </div>
                   )}
+
                   {item.cosine_similarity !== null && item.cosine_similarity !== undefined && (
-                    <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Similarity</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    <div>
+                      <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                        Cosine Similarity:
+                      </span>
+                      <span className="text-[#06141B] dark:text-[#CCD0CF]">
                         {item.cosine_similarity.toFixed(3)}
                       </span>
                     </div>
                   )}
-                  <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Fusion Score</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+
+                  <div>
+                    <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                      Fusion Score:
+                    </span>
+                    <span className="text-[#06141B] dark:text-[#CCD0CF]">
                       {item.rrf_score > 0
                         ? `${(item.rrf_score * 100).toFixed(1)}%`
                         : (item.semantic_score || 0).toFixed(2)}
                     </span>
                   </div>
+
                   {item.embedding_source && (
-                    <div className="p-1.5 rounded bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Embedding Source</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">
+                    <div>
+                      <span className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]/70 mr-1.5">
+                        Source:
+                      </span>
+                      <span className="text-[#06141B] dark:text-[#CCD0CF]">
                         {item.embedding_source}
                       </span>
                     </div>
@@ -216,7 +259,7 @@ export function SearchResults({
                 </div>
               </div>
             )}
-          </div>
+          </motion.article>
         );
       })}
     </div>

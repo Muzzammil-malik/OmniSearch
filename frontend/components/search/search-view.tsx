@@ -6,6 +6,7 @@ import { SearchResults } from "./search-results";
 import { DocumentPreview } from "./document-preview";
 import { SearchEmptyState } from "./search-empty-state";
 import { SearchErrorState } from "./search-error-state";
+import { Skeleton } from "../ui/skeleton";
 import { searchApi } from "@/lib/api";
 import {
   HybridSearchResultItem,
@@ -38,6 +39,11 @@ export function SearchView({
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Sync mode if user updates defaultMode in Settings
+  useEffect(() => {
+    setMode(defaultMode);
+  }, [defaultMode]);
+
   // Debounce query typing (280ms)
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -56,7 +62,6 @@ export function SearchView({
         return;
       }
 
-      // Cancel any ongoing fetch
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -78,7 +83,6 @@ export function SearchView({
 
         setSearchResponse(response);
         setSelectedIndex(0);
-        // Pre-select first result for preview if on desktop
         if (response.results.length > 0) {
           setSelectedItem(response.results[0]);
         } else {
@@ -119,9 +123,40 @@ export function SearchView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Top Search Controls Bar */}
-      <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-navy-800 bg-white/70 dark:bg-navy-900/60 backdrop-blur-md sticky top-0 z-20">
+      {/* Top Search Workspace Header */}
+      <div
+        className={`px-6 sm:px-10 ${
+          hasSearched
+            ? "py-5 border-b border-[#9BA8AB] dark:border-[#253745]"
+            : "pt-10 sm:pt-14 pb-6 border-b border-[#9BA8AB]/60 dark:border-[#253745]/70"
+        } bg-[#CCD0CF]/95 dark:bg-[#11212D]/95 sticky top-0 z-20 transition-all duration-200`}
+      >
         <div className="max-w-4xl mx-auto">
+          {/* Editorial Heading Composition (Section 10) */}
+          {!hasSearched ? (
+            <div className="mb-7 max-w-2xl">
+              <p className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB] mb-2">
+                Local-First Retrieval Workspace
+              </p>
+              <h1
+                className="text-2xl sm:text-4xl font-serif font-normal tracking-tight text-[#06141B] dark:text-[#CCD0CF] mb-2.5"
+                style={{ textWrap: "balance" }}
+              >
+                Everything on your computer, intelligently searchable.
+              </h1>
+              <p className="text-xs sm:text-sm text-[#253745] dark:text-[#9BA8AB] leading-relaxed">
+                Retrieve exact passages, spreadsheets, presentations, and source code across your local directories using combined lexical and semantic indexing.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <p className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB]">
+                Search Workspace
+              </p>
+            </div>
+          )}
+
+          {/* Prominent Search Field + Mode Controls + Format Filters */}
           <SearchBar
             query={query}
             onQueryChange={setQuery}
@@ -134,30 +169,32 @@ export function SearchView({
             onClear={handleClear}
           />
 
-          {/* Results Summary Bar */}
+          {/* Quiet Unboxed Telemetry Summary Bar */}
           {searchResponse && (
-            <div className="mt-2.5 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-700 dark:text-slate-300">
-                  {searchResponse.total_results} {searchResponse.total_results === 1 ? "result" : "results"}
+            <div className="mt-3.5 pt-2.5 border-t border-[#9BA8AB]/50 dark:border-[#253745] flex items-center justify-between text-xs text-[#253745] dark:text-[#9BA8AB] font-mono tabular-nums">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-[#06141B] dark:text-[#CCD0CF] font-sans">
+                  {searchResponse.total_results}{" "}
+                  {searchResponse.total_results === 1 ? "result" : "results"}
                 </span>
-                <span>·</span>
+                <span aria-hidden="true" className="text-[#4A5C6A]">
+                  ·
+                </span>
                 <span>{searchResponse.execution_time_ms.toFixed(0)} ms</span>
+                <span aria-hidden="true" className="text-[#4A5C6A]">
+                  ·
+                </span>
+                <span className="font-sans capitalize">
+                  {searchResponse.effective_mode.replace(/_/g, " ")} mode
+                </span>
 
-                {/* Subtle fallback indicator if degraded */}
-                {searchResponse.effective_mode === "keyword_only" && (
+                {searchResponse.fallback_reason && (
                   <>
-                    <span>·</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                      Keyword fallback
+                    <span aria-hidden="true" className="text-[#4A5C6A]">
+                      ·
                     </span>
-                  </>
-                )}
-                {searchResponse.effective_mode === "semantic_only" && (
-                  <>
-                    <span>·</span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                      Semantic fallback
+                    <span className="font-sans text-[#9c5214] dark:text-[#fcd34d]">
+                      Fallback active
                     </span>
                   </>
                 )}
@@ -167,13 +204,30 @@ export function SearchView({
         </div>
       </div>
 
-      {/* Main Results & Preview Area */}
+      {/* Main Results & Split Document Workspace */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Results List View */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+        {/* Results Column */}
+        <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6">
           <div className="max-w-4xl mx-auto">
             {error ? (
               <SearchErrorState error={error} onRetry={handleRetry} />
+            ) : isLoading && !searchResponse ? (
+              <div className="space-y-3" aria-label="Loading search results">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="p-5 rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/60 border border-[#9BA8AB] dark:border-[#253745] space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <Skeleton className="h-3.5 w-full" />
+                    <Skeleton className="h-3.5 w-4/5" />
+                    <Skeleton className="h-3 w-64" />
+                  </div>
+                ))}
+              </div>
             ) : results.length > 0 ? (
               <SearchResults
                 results={results}
@@ -188,7 +242,9 @@ export function SearchView({
               <SearchEmptyState
                 hasSearched={hasSearched}
                 query={debouncedQuery}
+                selectedFileType={selectedFileType}
                 onClearQuery={handleClear}
+                onClearFileType={() => setSelectedFileType(null)}
                 onOpenLibrary={onOpenLibrary}
                 onSelectQuery={(suggestion) => {
                   setQuery(suggestion);
@@ -199,9 +255,9 @@ export function SearchView({
           </div>
         </div>
 
-        {/* Document Preview Pane (Split Screen for Desktop) */}
+        {/* Desktop Document Preview Workspace */}
         {selectedItem && (
-          <div className="hidden lg:block w-[460px] shrink-0 h-full">
+          <div className="hidden lg:block w-[440px] xl:w-[480px] shrink-0 h-full">
             <DocumentPreview
               item={selectedItem}
               onClose={() => setSelectedItem(null)}
@@ -209,10 +265,10 @@ export function SearchView({
           </div>
         )}
 
-        {/* Mobile/Tablet Preview Drawer / Modal */}
+        {/* Mobile/Tablet Preview Drawer */}
         {selectedItem && (
-          <div className="lg:hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex justify-end">
-            <div className="w-full max-w-md h-full bg-white dark:bg-navy-900 shadow-2xl animate-in slide-in-from-right">
+          <div className="lg:hidden fixed inset-0 z-50 bg-[#06141B]/65 backdrop-blur-[2px] flex justify-end">
+            <div className="w-full max-w-md h-full bg-[#D8DCDB] dark:bg-[#11212D] shadow-modal">
               <DocumentPreview
                 item={selectedItem}
                 onClose={() => setSelectedItem(null)}
@@ -224,4 +280,3 @@ export function SearchView({
     </div>
   );
 }
-

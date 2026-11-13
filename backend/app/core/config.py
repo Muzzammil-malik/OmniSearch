@@ -96,6 +96,10 @@ class Settings(BaseSettings):
         default=16,
         description="Batch size for generating document chunk embeddings on CPU",
     )
+    embedding_fetch_pool_size: int = Field(
+        default=128,
+        description="Number of candidate chunks fetched from SQLite per embedding sync cycle for length-aware coalesced batching",
+    )
     embedding_device: str = Field(
         default="cpu",
         description="Device for embedding model inference ('cpu' or 'cuda' if supported)",

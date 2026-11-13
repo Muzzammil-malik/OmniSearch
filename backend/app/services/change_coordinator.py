@@ -127,7 +127,7 @@ class ChangeCoordinator:
             return False
 
     def _worker_loop(self) -> None:
-        """Dedicated background worker loop dispatching events to IndexingService."""
+        """Dedicated background worker loop dispatching events to IndexingService with coalesced batching."""
         while not self._stop_event.is_set():
             try:
                 event = self._queue.get(timeout=0.2)
@@ -137,32 +137,55 @@ class ChangeCoordinator:
             if event is None or self._stop_event.is_set():
                 break
 
-            filename = event.path.name
-            with self._lock:
-                self._current_file = filename
-                self._last_event_time = time.time()
+            # Collect a batch of immediately pending events from the queue (up to 16)
+            batch = [event]
+            while len(batch) < 16:
+                try:
+                    next_ev = self._queue.get_nowait()
+                    if next_ev is None:
+                        self._stop_event.set()
+                        break
+                    batch.append(next_ev)
+                except queue.Empty:
+                    break
 
-            try:
-                self._process_event(event)
+            any_embeddings_needed = False
+            for current_ev in batch:
+                filename = current_ev.path.name
                 with self._lock:
-                    self._processed_count += 1
-            except Exception as exc:
-                logger.error(
-                    "Unexpected error processing change event on '%s': %s",
-                    event.path,
-                    exc,
-                    exc_info=True,
-                )
-                with self._lock:
-                    self._error_count += 1
-                    self._last_error = str(exc)
-            finally:
-                with self._lock:
-                    self._current_file = None
-                self._queue.task_done()
+                    self._current_file = filename
+                    self._last_event_time = time.time()
 
-    def _process_event(self, event: FileChangeEvent) -> None:
-        """Route an event to the appropriate single-file indexing operation."""
+                try:
+                    needs_sync = self._process_event(current_ev, generate_embeddings=False)
+                    if needs_sync:
+                        any_embeddings_needed = True
+                    with self._lock:
+                        self._processed_count += 1
+                except Exception as exc:
+                    logger.error(
+                        "Unexpected error processing change event on '%s': %s",
+                        current_ev.path,
+                        exc,
+                        exc_info=True,
+                    )
+                    with self._lock:
+                        self._error_count += 1
+                        self._last_error = str(exc)
+                finally:
+                    with self._lock:
+                        self._current_file = None
+                    self._queue.task_done()
+
+            # Coalesced embedding generation across all files processed in this batch
+            if any_embeddings_needed and getattr(self.indexing_service, "semantic_pipeline", None):
+                try:
+                    self.indexing_service.semantic_pipeline.sync_embeddings()
+                except Exception as exc:
+                    logger.error("Error generating coalesced embeddings in coordinator: %s", exc)
+
+    def _process_event(self, event: FileChangeEvent, generate_embeddings: bool = True) -> bool:
+        """Route an event to the appropriate single-file indexing operation. Returns True if embeddings may be needed."""
         path = event.path
         change_type = event.change_type
 
@@ -173,20 +196,24 @@ class ChangeCoordinator:
             if not path.exists():
                 logger.debug("File '%s' does not exist at processing time; treating as DELETED", path.name)
                 self.indexing_service.delete_single_file(path)
-                return
+                return False
 
-            self.indexing_service.index_single_file(
+            rec = self.indexing_service.index_single_file(
                 file_path=path,
                 force_reindex=False,
-                generate_embeddings=True,
+                generate_embeddings=generate_embeddings,
             )
+            return rec is not None
 
         elif change_type == FileChangeType.DELETED:
             self.indexing_service.delete_single_file(path)
+            return False
 
         elif change_type == FileChangeType.MOVED:
             if event.dest_path is not None:
                 self.indexing_service.move_single_file(old_path=path, new_path=event.dest_path)
             else:
                 self.indexing_service.delete_single_file(path)
+            return False
+        return False
 

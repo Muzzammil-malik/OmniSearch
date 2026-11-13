@@ -17,6 +17,9 @@ SUPPORTED_AUDIO_EXTENSIONS: Set[str] = {
     ".m4a",
     ".aac",
     ".ogg",
+    ".oga",
+    ".opus",
+    ".wma",
 }
 
 

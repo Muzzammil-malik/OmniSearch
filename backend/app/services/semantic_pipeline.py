@@ -20,11 +20,13 @@ class SemanticPipeline:
         embedder: BaseEmbedder,
         vector_store: ChromaVectorStore,
         batch_size: int = 16,
+        fetch_pool_size: Optional[int] = None,
     ) -> None:
         self.db = db
         self.embedder = embedder
         self.vector_store = vector_store
         self.batch_size = batch_size
+        self.fetch_pool_size = fetch_pool_size if fetch_pool_size is not None else 128
 
     def sync_embeddings(self, max_chunks: Optional[int] = None) -> int:
         """Fetch unembedded chunks from SQLite, generate embeddings, and persist to ChromaDB.
@@ -52,7 +54,7 @@ class SemanticPipeline:
             )
 
         while True:
-            limit = self.batch_size
+            limit = self.fetch_pool_size
             if max_chunks is not None:
                 remaining = max_chunks - total_embedded
                 if remaining <= 0:

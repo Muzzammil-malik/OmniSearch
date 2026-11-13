@@ -52,13 +52,11 @@ export function formatRelativeTime(dateString?: string | null): string {
  */
 export function sanitizeHighlightedSnippet(html: string): string {
   if (!html) return "";
-  // Split on <mark> and </mark>
   const parts = html.split(/(<\/?mark>)/i);
   return parts
     .map((part) => {
       if (part.toLowerCase() === "<mark>") return "<mark>";
       if (part.toLowerCase() === "</mark>") return "</mark>";
-      // Escape HTML entities in raw content
       return part
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -69,51 +67,58 @@ export function sanitizeHighlightedSnippet(html: string): string {
     .join("");
 }
 
+/**
+ * Restrained file type classification using the #06141B–#CCD0CF palette.
+ */
 export function getFileTypeBadge(fileType: string): { label: string; color: string } {
   const norm = fileType?.toLowerCase() || "unknown";
+  const baseStyle =
+    "bg-[#9BA8AB]/30 text-[#06141B] border-[#4A5C6A]/40 dark:bg-[#253745] dark:text-[#CCD0CF] dark:border-[#4A5C6A]";
+  const accentStyle =
+    "bg-[#253745]/15 text-[#11212D] border-[#253745]/30 dark:bg-[#4A5C6A]/35 dark:text-[#CCD0CF] dark:border-[#9BA8AB]/35";
+
   switch (norm) {
     case "pdf":
-      return { label: "PDF", color: "bg-red-500/10 text-red-400 border-red-500/20" };
+      return { label: "PDF", color: baseStyle };
     case "docx":
     case "doc":
-      return { label: "DOCX", color: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
+      return { label: "DOCX", color: baseStyle };
     case "pptx":
     case "ppt":
-      return { label: "PPTX", color: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
+      return { label: "PPTX", color: baseStyle };
     case "xlsx":
     case "csv":
-      return { label: "SHEET", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
+      return { label: "SHEET", color: baseStyle };
     case "code":
     case "py":
     case "ts":
     case "tsx":
     case "js":
     case "json":
-      return { label: "CODE", color: "bg-purple-500/10 text-purple-400 border-purple-500/20" };
+      return { label: "CODE", color: accentStyle };
     case "md":
     case "markdown":
-      return { label: "MD", color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" };
+      return { label: "MD", color: accentStyle };
     case "image":
     case "jpg":
     case "jpeg":
     case "png":
     case "webp":
-      return { label: "IMAGE", color: "bg-pink-500/10 text-pink-400 border-pink-500/20" };
+      return { label: "IMAGE", color: baseStyle };
     case "audio":
     case "mp3":
     case "wav":
     case "flac":
-      return { label: "AUDIO", color: "bg-teal-500/10 text-teal-400 border-teal-500/20" };
+      return { label: "AUDIO", color: baseStyle };
     case "video":
     case "mp4":
     case "mkv":
     case "webm":
-      return { label: "VIDEO", color: "bg-orange-500/10 text-orange-400 border-orange-500/20" };
+      return { label: "VIDEO", color: baseStyle };
     case "text":
     case "txt":
-      return { label: "TXT", color: "bg-slate-500/10 text-slate-400 border-slate-500/20" };
+      return { label: "TXT", color: baseStyle };
     default:
-      return { label: norm.toUpperCase(), color: "bg-slate-500/10 text-slate-400 border-slate-500/20" };
+      return { label: norm.toUpperCase(), color: baseStyle };
   }
 }
-

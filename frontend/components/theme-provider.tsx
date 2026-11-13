@@ -13,6 +13,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // Default to "dark" to showcase the full #06141B -> #11212D -> #253745 -> #4A5C6A -> #9BA8AB -> #CCD0CF gradient hierarchy immediately
   const [theme, setThemeState] = useState<Theme>("dark");
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
 
@@ -74,4 +75,3 @@ export function useTheme() {
   }
   return context;
 }
-

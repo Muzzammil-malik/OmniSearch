@@ -8,6 +8,7 @@ from app.core.dependencies import (
     ChromaDependencyManager,
     NativeDependencyError,
     PyTorchDependencyError,
+    ScipyDependencyManager,
     TorchDependencyManager,
     classify_native_error,
 )
@@ -284,4 +285,58 @@ def test_semantic_pipeline_raises_when_vector_store_unavailable():
             pipeline.sync_embeddings()
 
         assert "Vector store is unavailable" in str(exc_info.value)
+
+
+# =====================================================================
+# 7. Scipy Dependency & Capability Detection Tests
+# =====================================================================
+
+def test_scipy_dependency_manager_case_a_normally_available():
+    """Case A: SciPy is installed and importable normally."""
+    import sys
+    ScipyDependencyManager.reset_instance()
+    mgr = ScipyDependencyManager()
+
+    fake_scipy = MagicMock()
+    fake_scipy.__version__ = "1.15.0"
+
+    with patch("importlib.util.find_spec", return_value=MagicMock()):
+        with patch.object(mgr, "_probe_scipy", return_value=fake_scipy):
+            assert mgr.check_capability() is True
+            assert mgr.is_available() is True
+            assert mgr.is_blocked() is False
+    ScipyDependencyManager.reset_instance()
+
+
+def test_scipy_dependency_manager_case_b_not_installed():
+    """Case B: SciPy is not installed."""
+    ScipyDependencyManager.reset_instance()
+    mgr = ScipyDependencyManager()
+
+    with patch("importlib.util.find_spec", return_value=None):
+        assert mgr.check_capability() is False
+        assert mgr.is_available() is False
+        assert mgr.is_blocked() is False
+    ScipyDependencyManager.reset_instance()
+
+
+def test_scipy_dependency_manager_case_c_package_exists_but_native_blocked():
+    """Case C: SciPy package exists on disk but native binary import is blocked by policy."""
+    import sys
+    ScipyDependencyManager.reset_instance()
+    mgr = ScipyDependencyManager()
+
+    fake_exc = ImportError("[WinError 4551] An Application Control policy has blocked this file: _ccallback_c.pyd")
+    fake_exc.winerror = 4551
+
+    with patch("importlib.util.find_spec", return_value=MagicMock()):
+        with patch.object(mgr, "_probe_scipy", side_effect=fake_exc):
+            assert mgr.check_capability() is False
+            assert mgr.is_available() is False
+            assert mgr.is_blocked() is True
+            assert mgr.get_error_category() == "application_control_policy_blocked"
+            # Ensure sys.modules["scipy"] is safely set to None so transformers skips DETR loss imports
+            assert sys.modules.get("scipy") is None
+    ScipyDependencyManager.reset_instance()
+
 

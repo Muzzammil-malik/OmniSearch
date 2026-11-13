@@ -14,6 +14,7 @@ from app.schemas.search import (
     SemanticSearchResponse,
     SemanticSearchResultItem,
 )
+from app.search.filter_utils import normalize_file_type_filters
 from app.search.snippets import SnippetFormatter
 from app.vector_store.chroma import ChromaVectorStore
 
@@ -123,11 +124,19 @@ class SemanticSearchEngine:
         # 6. Apply max_chunks_per_file consolidation and build result items
         results_list: List[SemanticSearchResultItem] = []
         chunks_per_file: Dict[int, int] = defaultdict(int)
+        allowed_types: Optional[Set[str]] = None
+        if search_req.filter and search_req.filter.file_types:
+            norm_list = normalize_file_type_filters(search_req.filter.file_types)
+            if norm_list:
+                allowed_types = set(norm_list)
 
         for match in filtered_matches:
             cid = match["chunk_id"]
             rec = sqlite_records.get(cid)
             if not rec:
+                continue
+
+            if allowed_types is not None and rec["file_type"] not in allowed_types:
                 continue
 
             file_id = rec["file_id"]
@@ -228,11 +237,12 @@ class SemanticSearchEngine:
         conditions: List[Dict[str, Any]] = []
 
         if filters.file_types:
-            clean_types = [t.lower().strip() for t in filters.file_types if t.strip()]
-            if len(clean_types) == 1:
-                conditions.append({"file_type": clean_types[0]})
-            elif len(clean_types) > 1:
-                conditions.append({"file_type": {"$in": clean_types}})
+            clean_types = normalize_file_type_filters(filters.file_types)
+            if clean_types:
+                if len(clean_types) == 1:
+                    conditions.append({"file_type": clean_types[0]})
+                elif len(clean_types) > 1:
+                    conditions.append({"file_type": {"$in": clean_types}})
 
         if filters.folder_ids:
             if len(filters.folder_ids) == 1:

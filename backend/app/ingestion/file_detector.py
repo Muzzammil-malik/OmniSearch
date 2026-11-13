@@ -20,9 +20,9 @@ MARKDOWN_EXTENSIONS: Set[str] = {".md", ".markdown"}
 HTML_EXTENSIONS: Set[str] = {".html", ".htm", ".xhtml"}
 CSV_EXTENSIONS: Set[str] = {".csv", ".tsv"}
 DOCUMENT_EXTENSIONS: Set[str] = {".pdf", ".docx", ".pptx", ".xlsx"}
-IMAGE_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
-AUDIO_EXTENSIONS: Set[str] = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
-VIDEO_EXTENSIONS: Set[str] = {".mp4", ".mkv", ".webm", ".mov", ".avi"}
+IMAGE_EXTENSIONS: Set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff", ".tif"}
+AUDIO_EXTENSIONS: Set[str] = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wma"}
+VIDEO_EXTENSIONS: Set[str] = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".wmv", ".m4v", ".mpeg", ".mpg"}
 
 ALL_SUPPORTED_EXTENSIONS: Set[str] = (
     CODE_EXTENSIONS

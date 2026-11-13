@@ -123,6 +123,17 @@ class TorchDependencyManager:
         import torch
         return torch
 
+    def configure_threads(self, num_threads: int = 6) -> None:
+        """Centralized PyTorch CPU thread configuration applied safely."""
+        with self._op_lock:
+            if not self._is_available or self._module is None:
+                return
+            try:
+                self._module.set_num_threads(num_threads)
+                logger.info("Configured PyTorch CPU intra-op threads: %d", num_threads)
+            except Exception as exc:
+                logger.warning("Could not set PyTorch thread count to %d: %s", num_threads, exc)
+
     def ensure_torch(self) -> Any:
         """Attempt native PyTorch initialization safely or re-raise cached original exception."""
         with self._op_lock:
@@ -141,6 +152,13 @@ class TorchDependencyManager:
                 self._module = mod
                 self._is_available = True
                 self._initialized = True
+                # Centralized thread tuning (6 threads benchmarked as optimal on 8-core CPU)
+                try:
+                    mod.set_num_threads(6)
+                except Exception:
+                    pass
+                # Check and isolate SciPy capability if native binaries are blocked
+                ScipyDependencyManager.get_instance().check_capability()
                 return mod
             except Exception as exc:
                 self._initialized = True
@@ -158,6 +176,92 @@ class TorchDependencyManager:
                     category=self._error_category,
                     original_exception=exc,
                 ) from exc
+
+
+class ScipyDependencyManager:
+    """Thread-safe singleton managing optional SciPy import lifecycle and Windows Application Control compatibility."""
+
+    _instance: Optional["ScipyDependencyManager"] = None
+    _lock = threading.Lock()
+
+    def __init__(self) -> None:
+        self._initialized = False
+        self._is_available = False
+        self._is_blocked = False
+        self._original_exception: Optional[Exception] = None
+        self._error_category: Optional[str] = None
+        self._op_lock = threading.RLock()
+
+    @classmethod
+    def get_instance(cls) -> "ScipyDependencyManager":
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        with cls._lock:
+            cls._instance = None
+
+    def is_available(self) -> bool:
+        if not self._initialized:
+            self.check_capability()
+        return self._is_available
+
+    def is_blocked(self) -> bool:
+        if not self._initialized:
+            self.check_capability()
+        return self._is_blocked
+
+    def get_error_category(self) -> Optional[str]:
+        return self._error_category
+
+    def get_original_exception(self) -> Optional[Exception]:
+        return self._original_exception
+
+    def _probe_scipy(self) -> Any:
+        import scipy
+        return scipy
+
+    def check_capability(self) -> bool:
+        """Probe SciPy availability and isolate native Windows Application Control blocks from transformers."""
+        with self._op_lock:
+            if self._initialized:
+                return self._is_available
+
+            try:
+                import importlib.util
+                spec = importlib.util.find_spec("scipy")
+                if spec is None:
+                    # Case B: SciPy not installed
+                    self._initialized = True
+                    self._is_available = False
+                    self._is_blocked = False
+                    return False
+
+                # Package exists on disk: probe actual native import
+                mod = self._probe_scipy()
+                self._initialized = True
+                self._is_available = True
+                self._is_blocked = False
+                return True
+            except Exception as exc:
+                # Case C: package directory exists on disk but native import failed/blocked
+                self._initialized = True
+                self._is_available = False
+                self._original_exception = exc
+                self._error_category = classify_native_error(exc)
+                self._is_blocked = (self._error_category in ("application_control_policy_blocked", "native_dll_load_failed"))
+
+                logger.info(
+                    "SciPy package found but native loading failed (category: %s); isolating from transformers: %s",
+                    self._error_category,
+                    exc,
+                )
+                # Safely mask unimportable package from transformers
+                sys.modules["scipy"] = None
+                return False
 
 
 class ChromaDependencyManager:

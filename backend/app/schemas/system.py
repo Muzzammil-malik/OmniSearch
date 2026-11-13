@@ -57,3 +57,11 @@ class SystemStatusResponse(BaseModel):
         description="UTC timestamp of the status check",
     )
 
+
+class NativeFolderPickerResponse(BaseModel):
+    """Result of native operating-system folder selection dialog."""
+
+    path: Optional[str] = Field(default=None, description="Selected absolute directory path, or None if canceled")
+    canceled: bool = Field(default=False, description="Whether the user canceled or dismissed the picker dialog")
+    error: Optional[str] = Field(default=None, description="Error message if native dialog could not be invoked")
+

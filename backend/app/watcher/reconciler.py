@@ -67,14 +67,19 @@ class StartupReconciler:
         elif indexing_service is not None:
             def _default_on_change(ev: FileChangeEvent) -> None:
                 if ev.change_type in (FileChangeType.CREATED, FileChangeType.MODIFIED):
-                    indexing_service.index_single_file(ev.path, generate_embeddings=True)
+                    indexing_service.index_single_file(ev.path, generate_embeddings=False)
                 elif ev.change_type == FileChangeType.DELETED:
                     indexing_service.delete_single_file(ev.path)
             self.on_change = _default_on_change
         else:
             self.on_change = lambda ev: None
 
-    def reconcile_folder(self, folder_id: int, folder_path: Path) -> ReconciliationSummary:
+    def reconcile_folder(
+        self,
+        folder_id: int,
+        folder_path: Path,
+        generate_embeddings: bool = True,
+    ) -> ReconciliationSummary:
         """Perform a metadata-first diff between disk files and SQLite records for a folder."""
         import time
         start_time = time.perf_counter()
@@ -165,6 +170,18 @@ class StartupReconciler:
             summary.modified_count += 1
             self.on_change(FileChangeEvent(change_type=FileChangeType.MODIFIED, path=sf.path))
 
+        # Coalesced embedding generation across all changed files in this reconciliation pass
+        if (
+            generate_embeddings
+            and self.indexing_service
+            and getattr(self.indexing_service, "semantic_pipeline", None)
+            and (summary.created_count > 0 or summary.modified_count > 0)
+        ):
+            try:
+                self.indexing_service.semantic_pipeline.sync_embeddings()
+            except Exception as exc:
+                logger.error("Error generating coalesced embeddings after reconciliation: %s", exc)
+
         summary.duration_seconds = round(time.perf_counter() - start_time, 3)
         logger.info(
             "Reconciliation complete for '%s' in %.3fs (New: %d, Modified: %d, Deleted: %d, Unchanged: %d)",
@@ -177,7 +194,7 @@ class StartupReconciler:
         )
         return summary
 
-    def reconcile_all_active_folders(self) -> List[ReconciliationSummary]:
+    def reconcile_all_active_folders(self, generate_embeddings: bool = True) -> List[ReconciliationSummary]:
         """Perform reconciliation across all enabled registered folders."""
         with self.db.connection() as conn:
             folders = FolderRepository.list_active(conn)
@@ -185,7 +202,7 @@ class StartupReconciler:
         summaries: List[ReconciliationSummary] = []
         for f in folders:
             if f.id is not None:
-                summaries.append(self.reconcile_folder(f.id, Path(f.path)))
+                summaries.append(self.reconcile_folder(f.id, Path(f.path), generate_embeddings=generate_embeddings))
 
         return summaries
 

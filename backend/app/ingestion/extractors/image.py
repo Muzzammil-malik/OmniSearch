@@ -19,6 +19,7 @@ SUPPORTED_IMAGE_EXTENSIONS: Set[str] = {
     ".bmp",
     ".gif",
     ".tiff",
+    ".tif",
 }
 
 

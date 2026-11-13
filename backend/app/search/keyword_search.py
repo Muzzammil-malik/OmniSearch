@@ -12,6 +12,7 @@ from app.schemas.search import (
     SearchResponse,
     SearchResultItem,
 )
+from app.search.filter_utils import normalize_file_type_filters
 from app.search.query_parser import QueryParser
 from app.search.snippets import SnippetFormatter
 
@@ -122,10 +123,11 @@ class KeywordSearchEngine:
         params: List[Any] = []
 
         if filter_spec.file_types:
-            clean_types = [t.lower().lstrip(".") for t in filter_spec.file_types]
-            placeholders = ", ".join("?" for _ in clean_types)
-            clauses.append(f"f.file_type IN ({placeholders})")
-            params.extend(clean_types)
+            clean_types = normalize_file_type_filters(filter_spec.file_types)
+            if clean_types:
+                placeholders = ", ".join("?" for _ in clean_types)
+                clauses.append(f"f.file_type IN ({placeholders})")
+                params.extend(clean_types)
 
         if filter_spec.folder_ids:
             placeholders = ", ".join("?" for _ in filter_spec.folder_ids)

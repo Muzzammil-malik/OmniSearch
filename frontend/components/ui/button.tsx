@@ -23,24 +23,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const sizeClasses = {
-      xs: "text-xs px-2.5 py-1 rounded-md h-7 gap-1.5",
-      sm: "text-xs font-medium px-3 py-1.5 rounded-lg h-8 gap-2",
-      md: "text-sm font-medium px-4 py-2 rounded-lg h-9 gap-2",
-      lg: "text-sm font-semibold px-5 py-2.5 rounded-xl h-11 gap-2.5",
-      icon: "p-2 rounded-lg h-9 w-9 justify-center items-center",
+      xs: "text-[11px] font-medium px-3 py-1 rounded-full h-7 gap-1.5",
+      sm: "text-xs font-medium px-3.5 py-1.5 rounded-full h-8 gap-1.5",
+      md: "text-xs font-medium px-4 py-2 rounded-full h-9 gap-2",
+      lg: "text-sm font-medium px-5 py-2.5 rounded-full h-10 gap-2",
+      icon: "p-2 rounded-full h-8 w-8 justify-center items-center",
     }[size];
 
     const variantClasses = {
       primary:
-        "bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold shadow-sm hover:shadow-glow transition-all active:scale-[0.98]",
+        "bg-[#06141B] hover:bg-[#11212D] text-[#CCD0CF] dark:bg-[#CCD0CF] dark:hover:bg-[#9BA8AB] dark:text-[#06141B] border border-transparent shadow-subtle",
       secondary:
-        "bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-navy-800 dark:hover:bg-navy-750 dark:text-slate-200 border border-slate-300 dark:border-navy-700 active:scale-[0.98] transition-all",
+        "bg-[#9BA8AB]/35 hover:bg-[#9BA8AB]/55 text-[#06141B] border border-[#4A5C6A]/50 dark:bg-[#253745] dark:hover:bg-[#4A5C6A] dark:text-[#CCD0CF] dark:border-[#4A5C6A]",
       ghost:
-        "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-navy-800/80 active:scale-[0.98] transition-all",
+        "bg-transparent text-[#253745] hover:text-[#06141B] hover:bg-[#06141B]/[0.07] dark:text-[#9BA8AB] dark:hover:text-[#CCD0CF] dark:hover:bg-[#253745]/70",
       outline:
-        "bg-transparent border border-slate-300 dark:border-navy-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 active:scale-[0.98] transition-all",
+        "bg-transparent border border-[#4A5C6A]/60 dark:border-[#4A5C6A] text-[#06141B] dark:text-[#CCD0CF] hover:bg-[#06141B]/[0.06] dark:hover:bg-[#253745]/60",
       danger:
-        "bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 active:scale-[0.98] transition-all",
+        "bg-[#9b2226]/[0.08] hover:bg-[#9b2226]/[0.15] text-[#9b2226] dark:bg-[#9b2226]/20 dark:hover:bg-[#9b2226]/30 dark:text-[#f2b8b5] border border-[#9b2226]/25",
     }[variant];
 
     return (
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={cn(
-          "inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed",
+          "inline-flex items-center justify-center whitespace-nowrap shrink-0 transition-colors duration-150 ease-editorial select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A5C6A] focus-visible:ring-offset-1 focus-visible:ring-offset-[#CCD0CF] dark:focus-visible:ring-[#9BA8AB] dark:focus-visible:ring-offset-[#06141B] disabled:opacity-45 disabled:pointer-events-none disabled:cursor-not-allowed",
           sizeClasses,
           variantClasses,
           className
@@ -57,7 +57,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading && (
           <svg
-            className="animate-spin -ml-0.5 h-4 w-4 text-current"
+            className="animate-spin -ml-0.5 h-3.5 w-3.5 text-current"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -68,10 +68,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               cy="12"
               r="10"
               stroke="currentColor"
-              strokeWidth="3"
+              strokeWidth="2.5"
             />
             <path
-              className="opacity-75"
+              className="opacity-80"
               fill="currentColor"
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
@@ -84,4 +84,3 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
-

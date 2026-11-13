@@ -5,17 +5,13 @@ import {
   Sun,
   Moon,
   Laptop,
-  Database,
-  Cpu,
-  Layers,
   RotateCw,
   ChevronDown,
   ChevronUp,
-  Activity,
 } from "lucide-react";
 import { systemApi } from "@/lib/api";
 import { SearchMode, SystemStatusResponse } from "@/lib/types";
-import { formatBytes, formatNumber } from "@/lib/utils";
+import { cn, formatBytes, formatNumber } from "@/lib/utils";
 import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 
@@ -36,7 +32,7 @@ export function SettingsView({
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(true);
 
   const fetchStatus = async () => {
     setIsLoading(true);
@@ -56,344 +52,327 @@ export function SettingsView({
   }, []);
 
   return (
-    <div className="p-6 sm:p-10 max-w-5xl mx-auto space-y-10 font-sans">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-200 dark:border-navy-800">
+    <div className="px-6 sm:px-10 py-8 sm:py-10 max-w-5xl mx-auto space-y-10 font-sans">
+      {/* Top Editorial Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-[#9BA8AB] dark:border-[#253745]">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB] mb-1.5">
+            Configuration & Diagnostics
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-serif font-normal tracking-tight text-[#06141B] dark:text-[#CCD0CF]">
             Settings & System
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Customize search preferences, theme appearance, and check system health.
+          <p className="text-xs sm:text-sm text-[#253745] dark:text-[#9BA8AB] mt-1">
+            Configure retrieval defaults, interface appearance, and local subsystem diagnostics.
           </p>
         </div>
 
         <Button variant="outline" size="sm" onClick={fetchStatus} disabled={isLoading}>
-          <RotateCw className={`w-4 h-4 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh Status
+          <RotateCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh status
         </Button>
       </div>
 
       {/* ==================================================================== */}
-      {/* SECTION 1: SETTINGS                                                  */}
+      {/* SECTION 1: PREFERENCES                                                */}
       {/* ==================================================================== */}
       <div className="space-y-6">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Preferences
-          </h2>
-        </div>
+        <h2 className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB]">
+          Interface & Retrieval Preferences
+        </h2>
 
-        {/* Appearance Card */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Appearance
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Select your interface color theme.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 max-w-md">
-            <button
-              onClick={() => setTheme("dark")}
-              className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 text-xs font-medium transition-all ${
-                theme === "dark"
-                  ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-600 dark:text-cyan-400"
-                  : "bg-slate-50 dark:bg-navy-850 border-slate-200 dark:border-navy-750 text-slate-600 dark:text-slate-400 hover:border-slate-300"
-              }`}
-            >
-              <Moon className="w-5 h-5" />
-              <span>Dark</span>
-            </button>
-
-            <button
-              onClick={() => setTheme("light")}
-              className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 text-xs font-medium transition-all ${
-                theme === "light"
-                  ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-600 dark:text-cyan-400"
-                  : "bg-slate-50 dark:bg-navy-850 border-slate-200 dark:border-navy-750 text-slate-600 dark:text-slate-400 hover:border-slate-300"
-              }`}
-            >
-              <Sun className="w-5 h-5" />
-              <span>Light</span>
-            </button>
-
-            <button
-              onClick={() => setTheme("system")}
-              className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 text-xs font-medium transition-all ${
-                theme === "system"
-                  ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-600 dark:text-cyan-400"
-                  : "bg-slate-50 dark:bg-navy-850 border-slate-200 dark:border-navy-750 text-slate-600 dark:text-slate-400 hover:border-slate-300"
-              }`}
-            >
-              <Laptop className="w-5 h-5" />
-              <span>System</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search Defaults Card */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 shadow-sm space-y-6">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Search Defaults
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Default strategy and result quantity applied on new searches.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Default Search Mode */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                Default Search Mode
-              </label>
-              <select
-                value={defaultMode}
-                onChange={(e) => onDefaultModeChange(e.target.value as SearchMode)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-cyan-500"
-              >
-                <option value="hybrid">Hybrid (Lexical + Semantic RRF - Recommended)</option>
-                <option value="keyword">Keyword Only (SQLite FTS5 BM25)</option>
-                <option value="semantic">Semantic Only (EmbeddingGemma 2 Vectors)</option>
-              </select>
+        <div className="rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/55 border border-[#9BA8AB] dark:border-[#253745] divide-y divide-[#9BA8AB] dark:divide-[#253745]">
+          {/* Appearance Row */}
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                Appearance
+              </h3>
+              <p className="text-xs text-[#253745] dark:text-[#9BA8AB] mt-0.5">
+                Choose between the Deep Navy surface (#06141B), Silver Mist canvas (#CCD0CF), or system preference.
+              </p>
             </div>
 
-            {/* Results per page */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                Results Limit
-              </label>
-              <select
-                value={defaultLimit}
-                onChange={(e) => onDefaultLimitChange(Number(e.target.value))}
-                className="w-full rounded-xl bg-slate-50 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-cyan-500"
+            {/* Pill-shaped theme selector buttons */}
+            <div
+              role="group"
+              aria-label="Color theme preference"
+              className="inline-flex items-center gap-1.5 p-1 rounded-full bg-[#CCD0CF] dark:bg-[#06141B] border border-[#9BA8AB] dark:border-[#253745] self-start sm:self-center"
+            >
+              <button
+                type="button"
+                onClick={() => setTheme("dark")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  theme === "dark"
+                    ? "bg-[#06141B] text-[#CCD0CF] dark:bg-[#CCD0CF] dark:text-[#06141B]"
+                    : "text-[#253745] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                )}
               >
-                <option value="10">10 results per query</option>
-                <option value="20">20 results per query (Default)</option>
-                <option value="50">50 results per query</option>
-              </select>
+                <Moon className="w-3.5 h-3.5" />
+                <span>Dark</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTheme("light")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  theme === "light"
+                    ? "bg-[#06141B] text-[#CCD0CF] dark:bg-[#CCD0CF] dark:text-[#06141B]"
+                    : "text-[#253745] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                )}
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span>Light</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTheme("system")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  theme === "system"
+                    ? "bg-[#06141B] text-[#CCD0CF] dark:bg-[#CCD0CF] dark:text-[#06141B]"
+                    : "text-[#253745] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF]"
+                )}
+              >
+                <Laptop className="w-3.5 h-3.5" />
+                <span>System</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search Defaults Row */}
+          <div className="p-6 space-y-5">
+            <div>
+              <h3 className="text-base font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                Search Defaults
+              </h3>
+              <p className="text-xs text-[#253745] dark:text-[#9BA8AB] mt-0.5">
+                Default retrieval strategy and result limit applied to new search sessions.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label
+                  htmlFor="default-search-mode"
+                  className="block text-xs font-medium text-[#06141B] dark:text-[#CCD0CF]"
+                >
+                  Default Retrieval Mode
+                </label>
+                <select
+                  id="default-search-mode"
+                  value={defaultMode}
+                  onChange={(e) => onDefaultModeChange(e.target.value as SearchMode)}
+                  className="w-full rounded-xl bg-[#E2E6E5] dark:bg-[#06141B] border border-[#9BA8AB] dark:border-[#253745] px-3.5 py-2.5 text-xs text-[#06141B] dark:text-[#CCD0CF] focus:outline-none focus:border-[#06141B] dark:focus:border-[#9BA8AB]"
+                >
+                  <option value="hybrid">Hybrid (Lexical + Semantic RRF — Recommended)</option>
+                  <option value="keyword">Keyword Only (SQLite FTS5 BM25)</option>
+                  <option value="semantic">Semantic Only (EmbeddingGemma 2 Vectors)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="default-results-limit"
+                  className="block text-xs font-medium text-[#06141B] dark:text-[#CCD0CF]"
+                >
+                  Results Limit
+                </label>
+                <select
+                  id="default-results-limit"
+                  value={defaultLimit}
+                  onChange={(e) => onDefaultLimitChange(Number(e.target.value))}
+                  className="w-full rounded-xl bg-[#E2E6E5] dark:bg-[#06141B] border border-[#9BA8AB] dark:border-[#253745] px-3.5 py-2.5 text-xs text-[#06141B] dark:text-[#CCD0CF] focus:outline-none focus:border-[#06141B] dark:focus:border-[#9BA8AB]"
+                >
+                  <option value="10">10 results per query</option>
+                  <option value="20">20 results per query (Default)</option>
+                  <option value="50">50 results per query</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* ==================================================================== */}
-      {/* SECTION 2: SYSTEM HEALTH & ADVANCED DIAGNOSTICS                       */}
+      {/* SECTION 2: SYSTEM HEALTH & DIAGNOSTICS                                */}
       {/* ==================================================================== */}
-      <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-navy-800">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            System Health & Diagnostics
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[11px] font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB]">
+            System Health & Subsystems
           </h2>
+
+          {systemStatus && (
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#253745] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF] border border-[#9BA8AB] dark:border-[#253745] transition-colors"
+            >
+              <span>{isDiagnosticsOpen ? "Hide technical details" : "Show technical details"}</span>
+              {isDiagnosticsOpen ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
         </div>
 
         {systemStatus ? (
-          <div className="space-y-4">
-            {/* Health Overview Summary Card */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      systemStatus.status === "healthy"
-                        ? "bg-emerald-500 shadow-sm shadow-emerald-500/50"
-                        : "bg-amber-500 animate-pulse"
-                    }`}
-                  />
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {systemStatus.status === "healthy"
-                      ? "All Subsystems Operational"
-                      : "System Degraded"}
-                  </h3>
-                </div>
-                <span className="font-mono text-xs text-slate-400">
-                  {systemStatus.app_name} v{systemStatus.version}
+          <div className="rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/55 border border-[#9BA8AB] dark:border-[#253745] overflow-hidden">
+            {/* Summary Bar */}
+            <div className="p-5 border-b border-[#9BA8AB] dark:border-[#253745] flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    systemStatus.status === "healthy"
+                      ? "bg-[#2d6a4f] dark:bg-[#74c69d]"
+                      : "bg-[#b5651d] dark:bg-[#fcd34d]"
+                  )}
+                />
+                <span className="text-sm font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                  {systemStatus.status === "healthy"
+                    ? "All local subsystems operational"
+                    : "System operating in degraded mode"}
                 </span>
               </div>
-
-              {/* Subsystem Health Snapshot */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-3.5 h-3.5 text-cyan-500" />
-                    <span className="font-medium text-slate-700 dark:text-slate-300">Database</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {systemStatus.database.status}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5 text-cyan-500" />
-                    <span className="font-medium text-slate-700 dark:text-slate-300">Vector Store</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {systemStatus.vector_store.status}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Cpu className="w-3.5 h-3.5 text-cyan-500" />
-                    <span className="font-medium text-slate-700 dark:text-slate-300">Embedding Model</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {systemStatus.embedding_model.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Expandable Technical Diagnostics Toggle */}
-              <div className="pt-2 border-t border-slate-100 dark:border-navy-800">
-                <button
-                  type="button"
-                  onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Technical Diagnostics</span>
-                  {isDiagnosticsOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
-                  )}
-                </button>
+              <div className="text-xs font-mono text-[#4A5C6A] dark:text-[#9BA8AB]">
+                {systemStatus.app_name} v{systemStatus.version} · {systemStatus.environment}
               </div>
             </div>
 
-            {/* Detailed Technical Subsystem Cards (Secondary / Expandable) */}
+            {/* Detailed 3-Column Subsystem Table */}
             {isDiagnosticsOpen && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-100">
-                {/* SQLite Status Card */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      <Database className="w-4 h-4 text-cyan-500" />
-                      <span>SQLite & FTS5</span>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#9BA8AB] dark:divide-[#253745]">
+                {/* Column 1: SQLite & FTS5 */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-sm font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                      SQLite & FTS5
+                    </h3>
+                    <span className="text-[11px] font-mono text-[#2d6a4f] dark:text-[#74c69d] capitalize">
                       {systemStatus.database.status}
                     </span>
                   </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  <dl className="space-y-1.5 text-xs font-mono tabular-nums">
                     <div className="flex justify-between">
-                      <span className="font-sans">WAL Mode:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
-                        {systemStatus.database.wal_mode ? "Active" : "Inactive"}
-                      </span>
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">WAL Mode</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
+                        {systemStatus.database.wal_mode ? "Enabled" : "Disabled"}
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Tracked Files:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Tracked Files</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {formatNumber(systemStatus.database.total_files)}
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Stored Chunks:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Stored Chunks</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {formatNumber(systemStatus.database.total_chunks)}
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">DB Size:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Database Size</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {systemStatus.database.size_bytes
                           ? formatBytes(systemStatus.database.size_bytes)
                           : "N/A"}
-                      </span>
+                      </dd>
                     </div>
-                  </div>
+                  </dl>
                 </div>
 
-                {/* ChromaDB Status Card */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      <Layers className="w-4 h-4 text-cyan-500" />
-                      <span>ChromaDB Vectors</span>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {/* Column 2: ChromaDB Vector Store */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-sm font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                      Vector Store
+                    </h3>
+                    <span className="text-[11px] font-mono text-[#2d6a4f] dark:text-[#74c69d] capitalize">
                       {systemStatus.vector_store.status}
                     </span>
                   </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    <div className="flex justify-between">
-                      <span className="font-sans">Collection:</span>
-                      <span className="text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
+                  <dl className="space-y-1.5 text-xs font-mono tabular-nums">
+                    <div className="flex justify-between gap-2">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Collection</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF] truncate max-w-[150px]">
                         {systemStatus.vector_store.collection_name}
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Total Vectors:</span>
-                      <span className="text-cyan-600 dark:text-cyan-400 font-semibold">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Total Vectors</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {formatNumber(systemStatus.vector_store.total_vectors)}
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Pending Chunks:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Unembedded</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {formatNumber(systemStatus.vector_store.unembedded_chunks)}
-                      </span>
+                      </dd>
                     </div>
-                  </div>
+                  </dl>
                 </div>
 
-                {/* EmbeddingGemma 2 Status Card */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      <Cpu className="w-4 h-4 text-cyan-500" />
-                      <span>EmbeddingGemma 2</span>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {/* Column 3: Embedding Model */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-sm font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]">
+                      Embedding Model
+                    </h3>
+                    <span className="text-[11px] font-mono text-[#2d6a4f] dark:text-[#74c69d] capitalize">
                       {systemStatus.embedding_model.status}
                     </span>
                   </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  <dl className="space-y-1.5 text-xs font-mono tabular-nums">
                     <div className="flex justify-between">
-                      <span className="font-sans">Dimensions:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Dimensions</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {systemStatus.embedding_model.dimension}D
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Target Device:</span>
-                      <span className="text-slate-700 dark:text-slate-200 uppercase">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Device</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF] uppercase">
                         {systemStatus.embedding_model.device}
-                      </span>
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Weights Verified:</span>
-                      <span className="text-emerald-500">
-                        {systemStatus.embedding_model.local_weights_present ? "Yes" : "No"}
-                      </span>
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Local Weights</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
+                        {systemStatus.embedding_model.local_weights_present
+                          ? "Verified"
+                          : "Missing"}
+                      </dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-sans">Loaded in RAM:</span>
-                      <span className="text-slate-700 dark:text-slate-200">
+                      <dt className="font-sans text-[#4A5C6A] dark:text-[#9BA8AB]">Memory State</dt>
+                      <dd className="text-[#06141B] dark:text-[#CCD0CF]">
                         {systemStatus.embedding_model.is_loaded ? "Resident" : "On-Demand"}
-                      </span>
+                      </dd>
                     </div>
-                  </div>
+                  </dl>
                 </div>
               </div>
             )}
           </div>
         ) : error ? (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-500">
-            {error}
+          <div className="p-5 rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/65 border border-[#9b2226]/30 text-xs text-[#9b2226] dark:text-[#f2b8b5] flex items-center justify-between gap-4">
+            <span className="font-mono">{error}</span>
+            <Button variant="secondary" size="xs" onClick={fetchStatus}>
+              Retry
+            </Button>
           </div>
         ) : (
-          <div className="p-8 text-center text-xs text-slate-500">
-            Loading system diagnostics...
+          <div className="p-8 text-center rounded-xl bg-[#D8DCDB] dark:bg-[#06141B]/55 border border-[#9BA8AB] dark:border-[#253745] text-xs text-[#4A5C6A] dark:text-[#9BA8AB]">
+            Loading subsystem diagnostics...
           </div>
         )}
       </div>

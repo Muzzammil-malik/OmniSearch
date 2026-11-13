@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface DialogProps {
@@ -37,45 +38,64 @@ export function Dialog({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity animate-in fade-in"
-        onClick={onClose}
-      />
-
-      {/* Dialog content panel */}
-      <div
-        className={cn(
-          "relative z-10 w-full max-w-lg rounded-2xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-750 p-6 shadow-2xl transition-all animate-in zoom-in-95",
-          className
-        )}
-      >
-        <div className="flex items-start justify-between pb-4 border-b border-slate-200 dark:border-navy-800">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {title}
-            </h3>
-            {description && (
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {description}
-              </p>
-            )}
-          </div>
-          <button
+    <AnimatePresence>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dialog-title"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 bg-[#06141B]/65 backdrop-blur-[2px]"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          />
 
-        <div className="pt-4">{children}</div>
-      </div>
-    </div>
+          {/* Dialog content panel */}
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.99 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className={cn(
+              "relative z-10 w-full max-w-lg rounded-xl bg-[#D8DCDB] dark:bg-[#11212D] border border-[#9BA8AB] dark:border-[#4A5C6A] p-6 shadow-modal",
+              className
+            )}
+          >
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#9BA8AB]/60 dark:border-[#253745]">
+              <div>
+                <h3
+                  id="dialog-title"
+                  className="text-lg font-serif font-medium text-[#06141B] dark:text-[#CCD0CF]"
+                >
+                  {title}
+                </h3>
+                {description && (
+                  <p className="mt-1 text-xs text-[#253745] dark:text-[#9BA8AB] leading-relaxed">
+                    {description}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close dialog"
+                className="p-1.5 rounded-full text-[#4A5C6A] dark:text-[#9BA8AB] hover:text-[#06141B] dark:hover:text-[#CCD0CF] hover:bg-[#06141B]/[0.07] dark:hover:bg-[#253745] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="pt-5">{children}</div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
-

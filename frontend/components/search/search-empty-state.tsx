@@ -1,16 +1,31 @@
 "use client";
 
 import React from "react";
-import { Search, FolderPlus, Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "../ui/button";
 
 interface SearchEmptyStateProps {
   hasSearched: boolean;
   query: string;
+  selectedFileType?: string | null;
   onClearQuery: () => void;
+  onClearFileType?: () => void;
   onOpenLibrary: () => void;
   onSelectQuery?: (query: string) => void;
 }
+
+const FORMAT_LABELS: Record<string, string> = {
+  pdf: "PDF",
+  docx: "DOCX",
+  pptx: "PPTX",
+  xlsx: "Sheets",
+  code: "Code",
+  md: "Markdown",
+  text: "Text",
+  image: "Images",
+  audio: "Audio",
+  video: "Video",
+};
 
 const SUGGESTED_QUERIES = [
   "database normalization",
@@ -23,29 +38,40 @@ const SUGGESTED_QUERIES = [
 export function SearchEmptyState({
   hasSearched,
   query,
+  selectedFileType,
   onClearQuery,
+  onClearFileType,
   onOpenLibrary,
   onSelectQuery,
 }: SearchEmptyStateProps) {
   if (hasSearched) {
+    const activeFormatLabel = selectedFileType ? FORMAT_LABELS[selectedFileType] || selectedFileType : null;
+
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 text-center max-w-md mx-auto">
-        <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3.5">
-          <Search className="w-5 h-5 stroke-[1.5]" />
-        </div>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
-          No matches found
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
-          No documents matched &ldquo;<span className="text-slate-700 dark:text-slate-300 font-medium">{query}</span>&rdquo;. Try searching different terms, switching to Semantic mode, or indexing additional folders.
+      <div className="py-14 px-4 max-w-lg mx-auto text-center">
+        <p className="text-xs font-mono uppercase tracking-widest text-[#4A5C6A] dark:text-[#9BA8AB] mb-2">
+          {activeFormatLabel ? `No Matching ${activeFormatLabel}` : "No Matching Passages"}
         </p>
-        <div className="flex items-center gap-2.5">
-          <Button variant="secondary" size="xs" onClick={onClearQuery}>
+        <h3 className="text-xl font-serif font-normal text-[#06141B] dark:text-[#CCD0CF] mb-2">
+          Nothing found for &ldquo;{query}&rdquo;
+          {activeFormatLabel ? ` in ${activeFormatLabel}` : ""}
+        </h3>
+        <p className="text-xs sm:text-sm text-[#253745] dark:text-[#9BA8AB] mb-6 leading-relaxed">
+          {activeFormatLabel
+            ? `No ${activeFormatLabel.toLowerCase()} files matched this query. Try switching to "All Formats" or broadening your search terms.`
+            : "Try broadening your search terms, switching between Hybrid, Keyword, and Semantic retrieval modes, or verifying that your target folders are indexed."}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          {activeFormatLabel && onClearFileType && (
+            <Button variant="secondary" size="sm" onClick={onClearFileType}>
+              Switch to All Formats
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={onClearQuery}>
             Clear search
           </Button>
-          <Button variant="outline" size="xs" onClick={onOpenLibrary}>
-            <FolderPlus className="w-3.5 h-3.5 mr-1" />
-            Check library
+          <Button variant="outline" size="sm" onClick={onOpenLibrary}>
+            Manage library folders
           </Button>
         </div>
       </div>
@@ -53,44 +79,43 @@ export function SearchEmptyState({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center py-14 sm:py-16 px-4 text-center max-w-lg mx-auto">
-      <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-4 shadow-inner">
-        <Sparkles className="w-6 h-6 stroke-[1.75]" />
-      </div>
-      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-2">
-        One search. Your entire digital world.
-      </h2>
-      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed max-w-md">
-        Find anything across your local PDFs, Office documents, presentations, spreadsheets, notes, and codebases.
-      </p>
-
-      {/* Suggested Queries */}
-      <div className="w-full max-w-md mb-8">
-        <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2.5">
+    <div className="pt-4 pb-12 max-w-2xl mx-auto">
+      {/* Suggested Queries as Pill Controls */}
+      <div className="pt-2">
+        <div className="text-xs font-medium text-[#4A5C6A] dark:text-[#9BA8AB] mb-3">
           Try searching for
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {SUGGESTED_QUERIES.map((suggestion) => (
             <button
               key={suggestion}
+              type="button"
               onClick={() => onSelectQuery?.(suggestion)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-white dark:bg-navy-900 border border-slate-200 dark:border-navy-800 text-slate-600 dark:text-slate-300 hover:border-cyan-500/40 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-500/5 transition-all group select-none shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#D8DCDB] dark:bg-[#06141B] border border-[#9BA8AB] dark:border-[#253745] text-[#06141B] dark:text-[#CCD0CF] hover:bg-[#06141B] hover:text-[#CCD0CF] hover:border-[#06141B] dark:hover:bg-[#CCD0CF] dark:hover:text-[#06141B] dark:hover:border-[#CCD0CF] transition-colors duration-150 group select-none"
             >
-              <Search className="w-3 h-3 text-slate-400 group-hover:text-cyan-500 transition-colors" />
               <span>{suggestion}</span>
-              <ArrowRight className="w-2.5 h-2.5 text-slate-300 dark:text-slate-600 group-hover:text-cyan-500 group-hover:translate-x-0.5 transition-all" />
+              <ArrowRight className="w-3 h-3 text-[#4A5C6A] dark:text-[#9BA8AB] group-hover:text-current group-hover:translate-x-0.5 transition-transform" />
             </button>
           ))}
         </div>
       </div>
 
-      {/* Subtle keyboard hint */}
-      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-        <span>Press</span>
-        <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-navy-850 border border-slate-200 dark:border-navy-750 font-mono text-[10px] text-slate-600 dark:text-slate-400">
-          Ctrl+K
-        </kbd>
-        <span>to focus search at any time</span>
+      {/* Quiet Keyboard Navigation Reference */}
+      <div className="mt-10 pt-6 border-t border-[#9BA8AB]/60 dark:border-[#253745] flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[#4A5C6A] dark:text-[#9BA8AB]">
+        <span>
+          <kbd className="font-mono text-[11px] text-[#06141B] dark:text-[#CCD0CF]">Ctrl+K</kbd>{" "}
+          Focus search
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd className="font-mono text-[11px] text-[#06141B] dark:text-[#CCD0CF]">↑ ↓</kbd>{" "}
+          Navigate results
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd className="font-mono text-[11px] text-[#06141B] dark:text-[#CCD0CF]">Enter</kbd>{" "}
+          Inspect document
+        </span>
       </div>
     </div>
   );

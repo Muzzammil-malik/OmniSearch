@@ -225,6 +225,41 @@ class IndexingService:
         finally:
             self.release_file(resolved_path)
 
+    def index_files(
+        self,
+        file_paths: List[Union[str, Path]],
+        folder_id: Optional[int] = None,
+        force_reindex: bool = False,
+        generate_embeddings: bool = True,
+    ) -> List[Optional[FileRecord]]:
+        """Index a collection of files, extracting and storing chunks with coalesced cross-file embedding.
+
+        Files are extracted and chunked into SQLite with generate_embeddings=False.
+        Once all files in the batch are committed, semantic embeddings are generated
+        in coalesced batches of 16 across all files.
+        """
+        records: List[Optional[FileRecord]] = []
+        any_chunks_added = False
+
+        for file_path in file_paths:
+            rec = self.index_single_file(
+                file_path=file_path,
+                folder_id=folder_id,
+                force_reindex=force_reindex,
+                generate_embeddings=False,
+            )
+            records.append(rec)
+            if rec is not None and rec.status == ExtractionStatus.SUCCESS.value:
+                any_chunks_added = True
+
+        if generate_embeddings and self.semantic_pipeline and any_chunks_added:
+            try:
+                self.semantic_pipeline.sync_embeddings()
+            except Exception as exc:
+                logger.error("Error generating coalesced embeddings for file batch: %s", exc)
+
+        return records
+
     def delete_single_file(self, file_path: Union[str, Path]) -> bool:
         """Remove a file and all associated chunks, FTS entries, and ChromaDB vectors."""
         resolved_path = Path(file_path).resolve()

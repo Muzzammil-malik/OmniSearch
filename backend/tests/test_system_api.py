@@ -79,3 +79,39 @@ def test_system_stats_endpoint(system_env):
     assert "total_folders" in data
     assert "total_files" in data
     assert "total_chunks" in data
+
+
+def test_pick_folder_native_selected(system_env, tmp_path):
+    """Verify POST /api/v1/system/pick-folder returns selected path when user selects directory."""
+    from unittest.mock import patch, MagicMock
+
+    client, _ = system_env
+    mock_dir = str(tmp_path / "selected_documents")
+
+    with patch("tkinter.Tk") as mock_tk_cls:
+        mock_root = MagicMock()
+        mock_tk_cls.return_value = mock_root
+        with patch("tkinter.filedialog.askdirectory", return_value=mock_dir):
+            response = client.post("/api/v1/system/pick-folder")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["canceled"] is False
+            assert Path(data["path"]) == Path(mock_dir).resolve()
+
+
+def test_pick_folder_native_canceled(system_env):
+    """Verify POST /api/v1/system/pick-folder returns canceled: true when user dismisses dialog."""
+    from unittest.mock import patch, MagicMock
+
+    client, _ = system_env
+
+    with patch("tkinter.Tk") as mock_tk_cls:
+        mock_root = MagicMock()
+        mock_tk_cls.return_value = mock_root
+        with patch("tkinter.filedialog.askdirectory", return_value=""):
+            response = client.post("/api/v1/system/pick-folder")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["canceled"] is True
+            assert data["path"] is None
+

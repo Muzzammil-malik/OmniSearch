@@ -18,6 +18,10 @@ SUPPORTED_VIDEO_EXTENSIONS: Set[str] = {
     ".webm",
     ".mov",
     ".avi",
+    ".wmv",
+    ".m4v",
+    ".mpeg",
+    ".mpg",
 }
 
 

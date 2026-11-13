@@ -177,5 +177,12 @@ export const systemApi = {
   getHealth: async (signal?: AbortSignal): Promise<{ status: string; app: string; version: string }> => {
     return request<{ status: string; app: string; version: string }>("/health", { signal });
   },
+
+  pickFolderNative: async (signal?: AbortSignal): Promise<{ path: string | null; canceled: boolean; error?: string }> => {
+    return request<{ path: string | null; canceled: boolean; error?: string }>("/system/pick-folder", {
+      method: "POST",
+      signal,
+    });
+  },
 };
 

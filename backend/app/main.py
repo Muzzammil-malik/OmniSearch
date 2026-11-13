@@ -54,12 +54,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 model_id=resolved_model,
                 dimension=settings.embedding_dimension,
                 batch_size=settings.embedding_batch_size,
+                fetch_pool_size=settings.embedding_fetch_pool_size,
                 device=settings.embedding_device,
                 precision=settings.embedding_precision,
                 local_files_only=(resolved_model != settings.embedding_model_id),
             )
             embedder = EmbeddingGemmaEmbedder(config=config)
-            semantic_pipeline = SemanticPipeline(db=db, embedder=embedder, vector_store=vector_store)
+            semantic_pipeline = SemanticPipeline(
+                db=db,
+                embedder=embedder,
+                vector_store=vector_store,
+                batch_size=settings.embedding_batch_size,
+                fetch_pool_size=settings.embedding_fetch_pool_size,
+            )
             indexing_service = IndexingService(db=db, semantic_pipeline=semantic_pipeline)
 
             coordinator = ChangeCoordinator(indexing_service=indexing_service)
